@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:menu-pet}",
+            "name": "Debug MenuPet",
+            "target": "MenuPet",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug MenuPet"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:menu-pet}",
+            "name": "Release MenuPet",
+            "target": "MenuPet",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release MenuPet"
+        }
+    ]
+}
