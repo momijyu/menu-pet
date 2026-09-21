@@ -7,7 +7,7 @@ final class ActivityStore: ObservableObject {
     @Published var dailyStats: [DailyStats] = []
     @Published var hasUnsavedChanges = false
     @Published var hasLoaded = false
-    //@Published var externalClickCount = 0
+    //@Published var leftClickCount = 0
     private var autoSaveTask: Task<Void, Never>?
     private var mouseMonitor: Any?
 
@@ -29,9 +29,14 @@ final class ActivityStore: ObservableObject {
         }
     }
 
-    func recordExternalClick() {
+    func recordLeftClick() {
         updateToday { stats in
-            stats.externalClickCount += 1
+            stats.leftClickCount += 1
+        }
+    }
+    func recordRightClick(){
+        updateToday { stats in
+            stats.rightClickCount += 1
         }
     }
 
@@ -132,15 +137,29 @@ final class ActivityStore: ObservableObject {
             }
         }
     }
-    private func startMouseMonitoring(){
+    private func startMouseMonitoring() {
+        //startMouseMonitoring自体は一度しか呼ばれていないがnsevent.⚪︎⚪︎を使用することでmac本体に()内のイベントの監視を追加できる。らしい。ほえー
+        //nsevent〇〇(条件){命令文}
         guard mouseMonitor == nil else { return }
+
         mouseMonitor = NSEvent.addGlobalMonitorForEvents(
-            matching: .leftMouseDown
-            ) {  [weak self] _ in
+            matching: [.leftMouseDown, .rightMouseDown]
+        ) { [weak self] event in
             Task { @MainActor in
-                self?.recordExternalClick()
-                print("他のアプリをクリック")
+                switch event.type {
+                case .leftMouseDown:
+                    self?.recordLeftClick()
+                    print("左クリック")
+
+                case .rightMouseDown:
+                    self?.recordRightClick()
+                    print("右クリック")
+
+                default:
+                    break
+                }
             }
         }
     }
+    //どこに何置いたかわかんなくなってきた。
 }

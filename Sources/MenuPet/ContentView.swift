@@ -41,8 +41,9 @@ struct ContentView: View {
                 //Text("今日:\(todayClickCount)回")
                 Text("ペット累計:\(clickCnt)回")
                 Text("ペット:\(todayStats?.petClickCount ?? 0)回")
-                Text("外部:\(todayStats?.externalClickCount ?? 0)回")
-                //Text("外部クリック回数:\(activityStore.externalClickCount)回")
+                Text("右:\(todayStats?.rightClickCount ?? 0)回")
+                Text("左:\(todayStats?.leftClickCount ?? 0)回")
+                //Text("外部クリック回数:\(activityStore.leftClickCount)回")
                 Button("保存"){
                     activityStore.saveDailyStats()
                 }
