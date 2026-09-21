@@ -7,6 +7,7 @@ struct DailyStats: Codable {
     var leftClickCount: Int = 0
     var rightClickCount: Int = 0
     var mouseDistance = 0.0
+    var keyCount: Int = 0
 
     enum CodingKeys: String, CodingKey {
         case date
@@ -15,6 +16,7 @@ struct DailyStats: Codable {
         case leftClickCount
         case rightClickCount
         case mouseDistance
+        case keyCount
     }
 
     init(
@@ -23,7 +25,8 @@ struct DailyStats: Codable {
         petClickCount: Int = 0,
         leftClickCount: Int = 0,
         rightClickCount: Int = 0,
-        mouseDistance: Double = 0.0
+        mouseDistance: Double = 0.0,
+        keyCount: Int = 0
 
     ) {
         self.date = date
@@ -32,6 +35,7 @@ struct DailyStats: Codable {
         self.leftClickCount = leftClickCount
         self.rightClickCount = rightClickCount
         self.mouseDistance = mouseDistance
+        self.keyCount = keyCount
     }
 
     init(from decoder: Decoder) throws {
@@ -65,6 +69,11 @@ struct DailyStats: Codable {
         mouseDistance = try container.decodeIfPresent(
             Double.self,
             forKey: .mouseDistance
+        ) ?? 0
+
+        keyCount = try container.decodeIfPresent(
+            Int.self,
+            forKey: .keyCount
         ) ?? 0
     }
 }

@@ -1,3 +1,4 @@
+//import ApplicationServices
 import Foundation
 import Combine
 import AppKit
@@ -7,7 +8,6 @@ final class ActivityStore: ObservableObject {
     @Published var dailyStats: [DailyStats] = []
     @Published var hasUnsavedChanges = false
     @Published var hasLoaded = false
-    //@Published var leftClickCount = 0
     private var autoSaveTask: Task<Void, Never>?
     private var mouseMonitor: Any?
     private var mouseTrackingTask: Task<Void, Never>?
@@ -16,6 +16,8 @@ final class ActivityStore: ObservableObject {
     private var pendingMouseDistance: Double = 0
 
     init(){
+        //print("Accessibility許可: \(AXIsProcessTrusted())")
+        requestAccessibilityPermission()
         loadDailyStats()
         startAutoSave()
         startMouseMonitoring()
@@ -150,18 +152,22 @@ final class ActivityStore: ObservableObject {
         guard mouseMonitor == nil else { return }
 
         mouseMonitor = NSEvent.addGlobalMonitorForEvents(
-            matching: [.leftMouseDown, .rightMouseDown]
+            matching: [.leftMouseDown, .rightMouseDown, .keyDown]
         ) { [weak self] event in
             Task { @MainActor in
                 switch event.type {
                 case .leftMouseDown:
                     self?.recordLeftClick()
-                    print("左クリック")
+                    //print("左クリック")
 
                 case .rightMouseDown:
                     self?.recordRightClick()
-                    print("右クリック")
-                    
+                    //print("右クリック")
+
+                case .keyDown:
+                    self?.recordKeyPress()
+                    //print("key推した")
+
                 default:
                     break
                 }
@@ -211,5 +217,21 @@ final class ActivityStore: ObservableObject {
                 )
             }
         }
+    }
+
+    //権限関係↓
+    func recordKeyPress() {
+            updateToday { stats in
+                stats.keyCount += 1
+            }
+        }
+        private func requestAccessibilityPermission() {
+        let options = [
+            kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
+        ] as CFDictionary
+
+        let trusted = AXIsProcessTrustedWithOptions(options)
+
+        print("Accessibility許可: \(trusted)")
     }
 }
