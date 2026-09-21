@@ -1,26 +1,54 @@
 import Foundation
 import Combine
+import AppKit
 
 @MainActor
 final class ActivityStore: ObservableObject {
     @Published var dailyStats: [DailyStats] = []
     @Published var hasUnsavedChanges = false
     @Published var hasLoaded = false
+    //@Published var externalClickCount = 0
+    private var autoSaveTask: Task<Void, Never>?
+    private var mouseMonitor: Any?
 
-    func recordClick() {
+    init(){
+        loadDailyStats()
+        startAutoSave()
+        startMouseMonitoring()
+    }
+    deinit{
+        autoSaveTask?.cancel()
+
+        if let mouseMonitor {
+            NSEvent.removeMonitor(mouseMonitor)
+        }
+    }
+    func recordPetClick() {
+        updateToday { stats in
+            stats.petClickCount += 1
+        }
+    }
+
+    func recordExternalClick() {
+        updateToday { stats in
+            stats.externalClickCount += 1
+        }
+    }
+
+    private func updateToday(_ update: (inout DailyStats) -> Void) {
         let today = Calendar.current.startOfDay(for: Date())
 
         if let index = dailyStats.firstIndex(where: { $0.date == today }) {
-            dailyStats[index].clickCount += 1
+            update(&dailyStats[index])
         } else {
-            dailyStats.append(
-                DailyStats(date: today, clickCount: 1)
-            )
+            var newStats = DailyStats(date: today)
+            update(&newStats)
+            dailyStats.append(newStats)
         }
 
         hasUnsavedChanges = true
     }
-    func loadDailyStats() {
+    private func loadDailyStats() {
         guard !hasLoaded else { return }
 
         do {
@@ -86,6 +114,33 @@ final class ActivityStore: ObservableObject {
             print("保存しました: \(fileURL.path)")
         } catch {
             print("保存に失敗しました: \(error)")
+        }
+    }
+    private func startAutoSave() {
+        guard autoSaveTask == nil else { return }
+
+        autoSaveTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(30))
+                } catch {
+                    return
+                }
+
+                guard !Task.isCancelled, let self else { return }
+                self.saveDailyStats()
+            }
+        }
+    }
+    private func startMouseMonitoring(){
+        guard mouseMonitor == nil else { return }
+        mouseMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: .leftMouseDown
+            ) {  [weak self] _ in
+            Task { @MainActor in
+                self?.recordExternalClick()
+                print("他のアプリをクリック")
+            }
         }
     }
 }

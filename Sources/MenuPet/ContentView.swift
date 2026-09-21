@@ -7,9 +7,12 @@ struct ContentView: View {
     @AppStorage("creatureClickCnt")private var clickCnt = 0
     @ObservedObject var activityStore: ActivityStore
 
-    private var todayClickCount: Int{
+    private var todayStats: DailyStats? {
         let today = Calendar.current.startOfDay(for: Date())
-        return activityStore.dailyStats.first(where: { $0.date == today })?.clickCount ?? 0
+
+        return activityStore.dailyStats.first {
+            Calendar.current.isDate($0.date, inSameDayAs: today)
+        }
     }
     var body: some View {
         ZStack{
@@ -23,7 +26,7 @@ struct ContentView: View {
             }
             CreatureView(size: 45, onTap: {
                 clickCnt += 1
-                activityStore.recordClick()
+                activityStore.recordPetClick()
             })
         }
         .frame(width: 360, height: 420)
@@ -35,9 +38,11 @@ struct ContentView: View {
         }
         .overlay(alignment: .bottom) {
             HStack{
-                Text("今日:\(todayClickCount)回")
-                Text("累計:\(clickCnt)回")
-
+                //Text("今日:\(todayClickCount)回")
+                Text("ペット累計:\(clickCnt)回")
+                Text("ペット:\(todayStats?.petClickCount ?? 0)回")
+                Text("外部:\(todayStats?.externalClickCount ?? 0)回")
+                //Text("外部クリック回数:\(activityStore.externalClickCount)回")
                 Button("保存"){
                     activityStore.saveDailyStats()
                 }
@@ -51,19 +56,6 @@ struct ContentView: View {
                 }
             }
             .padding(16)
-        }
-        .onAppear(){
-            activityStore.loadDailyStats()
-        }
-        .task{
-            while !Task.isCancelled{
-                do{
-                    try await Task.sleep(for: .seconds(30))
-                }catch{
-                    return
-                }
-                activityStore.saveDailyStats()
-            }
         }
     }
 }
