@@ -10,14 +10,20 @@ final class ActivityStore: ObservableObject {
     //@Published var leftClickCount = 0
     private var autoSaveTask: Task<Void, Never>?
     private var mouseMonitor: Any?
+    private var mouseTrackingTask: Task<Void, Never>?
+    private var previousMouseLocation: NSPoint?
+    //データがないから?を使用してるよー
+    private var pendingMouseDistance: Double = 0
 
     init(){
         loadDailyStats()
         startAutoSave()
         startMouseMonitoring()
+        startMouseTracking()
     }
     deinit{
         autoSaveTask?.cancel()
+        mouseTrackingTask?.cancel()
 
         if let mouseMonitor {
             NSEvent.removeMonitor(mouseMonitor)
@@ -88,6 +94,7 @@ final class ActivityStore: ObservableObject {
         }
     }
     func saveDailyStats(){
+        flushPendingMouseDistance()
         guard hasLoaded && hasUnsavedChanges else { return }
         do {
             let encoder = JSONEncoder()
@@ -154,7 +161,7 @@ final class ActivityStore: ObservableObject {
                 case .rightMouseDown:
                     self?.recordRightClick()
                     print("右クリック")
-
+                    
                 default:
                     break
                 }
@@ -162,4 +169,47 @@ final class ActivityStore: ObservableObject {
         }
     }
     //どこに何置いたかわかんなくなってきた。
+    private func recordMouseMovement(at location: NSPoint) {
+        guard let previousLocation = previousMouseLocation else {
+            previousMouseLocation = location
+            return
+        }
+
+        let deltaX = location.x - previousLocation.x
+        let deltaY = location.y - previousLocation.y
+
+        let distance = hypot(deltaX, deltaY)
+        pendingMouseDistance += distance
+
+        previousMouseLocation = location
+    }
+    private func flushPendingMouseDistance() {
+        guard pendingMouseDistance > 0 else { return }
+
+        let distance = pendingMouseDistance
+        pendingMouseDistance = 0
+
+        updateToday { stats in
+            stats.mouseDistance += distance
+        }
+    }
+    private func startMouseTracking() {
+        guard mouseTrackingTask == nil else { return }
+
+        mouseTrackingTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .milliseconds(50))
+                } catch {
+                    return
+                }
+
+                guard !Task.isCancelled, let self else { return }
+
+                self.recordMouseMovement(
+                    at: NSEvent.mouseLocation
+                )
+            }
+        }
+    }
 }

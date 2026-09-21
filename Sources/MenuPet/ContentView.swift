@@ -43,6 +43,7 @@ struct ContentView: View {
                 Text("ペット:\(todayStats?.petClickCount ?? 0)回")
                 Text("右:\(todayStats?.rightClickCount ?? 0)回")
                 Text("左:\(todayStats?.leftClickCount ?? 0)回")
+                Text("マウス:\(todayStats?.mouseDistance ?? 0, specifier: "%.0f")pt")
                 //Text("外部クリック回数:\(activityStore.leftClickCount)回")
                 Button("保存"){
                     activityStore.saveDailyStats()
