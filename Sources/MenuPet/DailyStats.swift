@@ -59,57 +59,37 @@ struct DailyStats: Codable {
         let container = try decoder.container(
             keyedBy: CodingKeys.self
         )
-
+        func readCount(_ key: CodingKeys) throws -> Int {
+            try container.decodeIfPresent(Int.self, forKey: key) ?? 0
+        }
         date = try container.decode(Date.self, forKey: .date)
 
-        clickCount = try container.decodeIfPresent(
-            Int.self,
-            forKey: .clickCount
-        ) ?? 0
 
-        petClickCount = try container.decodeIfPresent(
-            Int.self,
-            forKey: .petClickCount
-        ) ?? 0
+        clickCount = try readCount(.clickCount)
 
-        leftClickCount = try container.decodeIfPresent(
-            Int.self,
-            forKey: .leftClickCount
-        ) ?? 0
+        petClickCount = try readCount(.petClickCount)
 
-        rightClickCount = try container.decodeIfPresent(
-            Int.self,
-            forKey: .rightClickCount
-            //ここまでやると慣れてくる。
-        ) ?? 0
+        leftClickCount = try readCount(.leftClickCount)
+
+        rightClickCount = try readCount(.rightClickCount)
 
         mouseDistance = try container.decodeIfPresent(
             Double.self,
             forKey: .mouseDistance
         ) ?? 0
 
-        keyCount = try container.decodeIfPresent(
-            Int.self,
-            forKey: .keyCount
-        ) ?? 0
-        backspaceCount = try container.decodeIfPresent(
-            Int.self,
-            forKey: .backspaceCount
-        ) ?? 0
+        keyCount = try readCount(.keyCount)
 
-        enterCount = try container.decodeIfPresent(
-            Int.self,
-            forKey: .enterCount
-        ) ?? 0
+        backspaceCount = try readCount(.backspaceCount)
 
-        spaceCount = try container.decodeIfPresent(
-            Int.self,
-            forKey: .spaceCount
-        ) ?? 0
-        
+        enterCount = try readCount(.enterCount)
+
+        spaceCount = try readCount(.spaceCount)
+
         activityByHour = try container.decodeIfPresent(
             [Int].self,
             forKey: .activityByHour
         ) ?? Array(repeating: 0, count: 24)
+        
     }
 }
