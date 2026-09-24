@@ -1,4 +1,4 @@
-//import ApplicationServices
+import ApplicationServices
 import Foundation
 import Combine
 import AppKit
@@ -40,11 +40,15 @@ final class ActivityStore: ObservableObject {
     func recordLeftClick() {
         updateToday { stats in
             stats.leftClickCount += 1
+            let hour = Calendar.current.component(.hour, from: Date())
+            stats.activityByHour[hour] += 1
         }
     }
     func recordRightClick(){
         updateToday { stats in
             stats.rightClickCount += 1
+            let hour = Calendar.current.component(.hour, from: Date())
+            stats.activityByHour[hour] += 1
         }
     }
 
@@ -165,7 +169,7 @@ final class ActivityStore: ObservableObject {
                     //print("右クリック")
 
                 case .keyDown:
-                    self?.recordKeyPress()
+                    self?.recordKeyPress(keyCode: event.keyCode)
                     //print("key推した")
 
                 default:
@@ -218,14 +222,31 @@ final class ActivityStore: ObservableObject {
             }
         }
     }
+    func recordKeyPress(keyCode: UInt16) {
+        updateToday { stats in
+            stats.keyCount += 1
+            let hour = Calendar.current.component(.hour, from: Date())
+            stats.activityByHour[hour] += 1
 
-    //権限関係↓
-    func recordKeyPress() {
-            updateToday { stats in
-                stats.keyCount += 1
+            switch keyCode {
+            case 51:
+                stats.backspaceCount += 1
+
+            case 36, 76:
+                stats.enterCount += 1
+
+            case 49:
+                stats.spaceCount += 1
+
+            default:
+                break
             }
         }
-        private func requestAccessibilityPermission() {
+    }
+
+
+    //権限関係↓
+    private func requestAccessibilityPermission() {
         let options = [
             kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
         ] as CFDictionary

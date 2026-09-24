@@ -38,12 +38,15 @@ struct ContentView: View {
         }
         .overlay(alignment: .bottom) {
             HStack{
-                // Text("ペット累計:\(clickCnt)回")
-                // Text("ペット:\(todayStats?.petClickCount ?? 0)回")
-                // Text("右:\(todayStats?.rightClickCount ?? 0)回")
-                // Text("左:\(todayStats?.leftClickCount ?? 0)回")
-                // Text("マウス:\(todayStats?.mouseDistance ?? 0, specifier: "%.0f")pt")
+                Text("ペット累計:\(clickCnt)回")
+                Text("ペット:\(todayStats?.petClickCount ?? 0)回")
+                Text("右:\(todayStats?.rightClickCount ?? 0)回")
+                Text("左:\(todayStats?.leftClickCount ?? 0)回")
+                Text("マウス:\(todayStats?.mouseDistance ?? 0, specifier: "%.0f")pt")
                 Text("key:\(todayStats?.keyCount ?? 0)回")
+                Text("backsp:\(todayStats?.backspaceCount ?? 0)回")
+                Text("Enter:\(todayStats?.enterCount ?? 0)回")
+                Text("space:\(todayStats?.spaceCount ?? 0)回")
                 //Text("外部クリック回数:\(activityStore.leftClickCount)回")
                 Button("保存"){
                     activityStore.saveDailyStats()
