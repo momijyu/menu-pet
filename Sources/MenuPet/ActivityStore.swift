@@ -169,9 +169,10 @@ final class ActivityStore: ObservableObject {
                     //print("右クリック")
 
                 case .keyDown:
-                    self?.recordKeyPress(keyCode: event.keyCode)
-                    //print("key推した")
-
+                    self?.recordKeyPress(
+                        keyCode: event.keyCode,
+                        isCommandPressed: event.modifierFlags.contains(.command)
+                    )
                 default:
                     break
                 }
@@ -222,7 +223,7 @@ final class ActivityStore: ObservableObject {
             }
         }
     }
-    func recordKeyPress(keyCode: UInt16) {
+    func recordKeyPress(keyCode: UInt16, isCommandPressed: Bool) {
         updateToday { stats in
             stats.keyCount += 1
             let hour = Calendar.current.component(.hour, from: Date())
@@ -237,9 +238,23 @@ final class ActivityStore: ObservableObject {
 
             case 49:
                 stats.spaceCount += 1
-
+            
             default:
                 break
+            }
+            if isCommandPressed{
+                switch keyCode{
+                case 8:
+                    stats.copyCount += 1
+
+                case 9:
+                    stats.pasteCount += 1
+
+                case 0:
+                    stats.selectAllCount += 1
+                default:
+                    break
+                }
             }
         }
     }

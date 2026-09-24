@@ -47,6 +47,10 @@ struct ContentView: View {
                 Text("backsp:\(todayStats?.backspaceCount ?? 0)回")
                 Text("Enter:\(todayStats?.enterCount ?? 0)回")
                 Text("space:\(todayStats?.spaceCount ?? 0)回")
+                Text("paste:\(todayStats?.pasteCount ?? 0)回")
+                Text("copy:\(todayStats?.copyCount ?? 0)回")
+                Text("all:\(todayStats?.selectAllCount ?? 0)回")
+
                 //Text("外部クリック回数:\(activityStore.leftClickCount)回")
                 Button("保存"){
                     activityStore.saveDailyStats()

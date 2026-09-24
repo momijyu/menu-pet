@@ -12,6 +12,9 @@ struct DailyStats: Codable {
     var enterCount = 0
     var spaceCount = 0
     var activityByHour: [Int] = Array(repeating: 0, count: 24)
+    var copyCount = 0
+    var pasteCount = 0
+    var selectAllCount = 0
 
     enum CodingKeys: String, CodingKey {
         case date
@@ -25,6 +28,9 @@ struct DailyStats: Codable {
         case enterCount
         case spaceCount
         case activityByHour
+        case copyCount
+        case pasteCount
+        case selectAllCount
     }
 
     init(
@@ -38,8 +44,10 @@ struct DailyStats: Codable {
         backspaceCount: Int = 0,
         enterCount: Int = 0,
         spaceCount: Int = 0,
-        activityByHour: [Int] = Array(repeating: 0, count: 24)
-
+        activityByHour: [Int] = Array(repeating: 0, count: 24),
+        copyCount: Int = 0,
+        pasteCount: Int = 0,
+        selectAllCount: Int = 0
 
     ) {
         self.date = date
@@ -53,6 +61,10 @@ struct DailyStats: Codable {
         self.backspaceCount = backspaceCount
         self.spaceCount = spaceCount
         self.activityByHour = activityByHour
+        self.pasteCount = pasteCount
+        self.copyCount = copyCount
+        self.selectAllCount = selectAllCount
+
     }
 
     init(from decoder: Decoder) throws {
@@ -90,6 +102,11 @@ struct DailyStats: Codable {
             [Int].self,
             forKey: .activityByHour
         ) ?? Array(repeating: 0, count: 24)
+
+        copyCount = try readCount(.copyCount)
+
+        pasteCount = try readCount(.pasteCount)
         
+        selectAllCount = try readCount(.selectAllCount)
     }
 }
