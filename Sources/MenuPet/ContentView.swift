@@ -50,6 +50,11 @@ struct ContentView: View {
                 Text("paste:\(todayStats?.pasteCount ?? 0)回")
                 Text("copy:\(todayStats?.copyCount ?? 0)回")
                 Text("all:\(todayStats?.selectAllCount ?? 0)回")
+                Text("慎重さ:\(activityStore.caution, specifier: "%.2f")")
+                Text("キー活動量:\(activityStore.keyActivity, specifier: "%.2f")")
+                Text("クリック活動量:\(activityStore.clickActivity, specifier: "%.2f")")
+                Text("マウス活動量:\(activityStore.mouseActivity, specifier: "%.2f")")
+                Text("活動量:\(activityStore.activityLevel, specifier: "%.2f")")
 
                 //Text("外部クリック回数:\(activityStore.leftClickCount)回")
                 Button("保存"){

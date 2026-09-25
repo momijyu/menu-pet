@@ -258,7 +258,68 @@ final class ActivityStore: ObservableObject {
             }
         }
     }
+    var recentStats: [DailyStats] {
+        let today = Calendar.current.startOfDay(for: Date())
+        guard let firstDay = Calendar.current.date(
+            byAdding: .day,
+            value: -6,
+            to: today
+        ) else {
+            return []
+        }
 
+        return dailyStats.filter { stats in
+            stats.date >= firstDay && stats.date <= today
+        }
+    }
+    //慎重さ
+    var caution: Double {
+        let backspace = recentStats.reduce(0) { total, day in
+            total + day.backspaceCount
+        }
+        let enter = recentStats.reduce(0) { total, day in
+            total + day.enterCount
+        }
+
+        guard backspace + enter > 0 else { return 0.5 }
+        return Double(backspace) / Double(backspace + enter)
+    }
+
+    //活動量キー
+    var keyActivity: Double {
+        guard !recentStats.isEmpty else { return 0 }
+        let total = recentStats.reduce(0) { sum, day in
+            sum + day.keyCount
+        } 
+        let dailyAverage = Double(total) / Double(recentStats.count)
+        return min(dailyAverage / 3000, 1)
+    }
+    //活動量クリック
+    var clickActivity: Double {
+        guard !recentStats.isEmpty else { return 0 }
+
+        let total = recentStats.reduce(0) { sum, day in
+            sum + day.leftClickCount + day.rightClickCount
+        }
+        let dailyAverage = Double(total) / Double(recentStats.count)
+
+        return min(dailyAverage / 500, 1)
+    }
+    //活動量マウス
+    var mouseActivity: Double {
+        guard !recentStats.isEmpty else { return 0 }
+
+        let total = recentStats.reduce(0.0) { sum, day in
+            sum + day.mouseDistance
+        }
+        let dailyAverage = total / Double(recentStats.count)
+
+        return min(dailyAverage / 500_000, 1)
+    }
+    //活動量(合計)
+    var activityLevel: Double {
+        (keyActivity + clickActivity + mouseActivity) / 3
+    }
 
     //権限関係↓
     private func requestAccessibilityPermission() {
