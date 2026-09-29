@@ -272,6 +272,38 @@ final class ActivityStore: ObservableObject {
             stats.date >= firstDay && stats.date <= today
         }
     }
+    var recent30Stats: [DailyStats] {
+        let today = Calendar.current.startOfDay(for: Date())
+        guard let firstDay = Calendar.current.date(
+            byAdding: .day,
+            value: -29,
+            to: today
+        ) else {
+            return []
+        }
+
+        return dailyStats.filter { stats in
+            stats.date >= firstDay && stats.date <= today
+        }
+    }
+    var colorTendency: Double {
+        let keys = recent30Stats.reduce(0) { $0 + $1.keyCount }
+        let shortcuts = recent30Stats.reduce(0) {
+            $0 + $1.copyCount + $1.pasteCount
+        }
+        let leftClicks = recent30Stats.reduce(0) { $0 + $1.leftClickCount }
+        let rightClicks = recent30Stats.reduce(0) { $0 + $1.rightClickCount }
+
+        let shortcutRate = keys > 0
+            ? min(Double(shortcuts) / Double(keys) * 10, 1)
+            : 0.5
+        let clicks = leftClicks + rightClicks
+        let rightClickRate = clicks > 0
+            ? min(Double(rightClicks) / Double(clicks) * 3, 1)
+            : 0.5
+
+        return (shortcutRate + rightClickRate) / 2
+    }
     //慎重さ
     var caution: Double {
         let backspace = recentStats.reduce(0) { total, day in
@@ -283,6 +315,12 @@ final class ActivityStore: ObservableObject {
 
         guard backspace + enter > 0 else { return 0.5 }
         return Double(backspace) / Double(backspace + enter)
+    }
+    var spaceJump: Double {
+        let keys = recentStats.reduce(0) { $0 + $1.keyCount }
+        let spaces = recentStats.reduce(0) { $0 + $1.spaceCount }
+        guard keys > 0 else { return 0 }
+        return min(Double(spaces) / Double(keys) * 4, 1)
     }
 
     //活動量キー
@@ -320,7 +358,26 @@ final class ActivityStore: ObservableObject {
     var activityLevel: Double {
         (keyActivity + clickActivity + mouseActivity) / 3
     }
-
+    var totalKeyCount: Int {
+        dailyStats.reduce(0) { total, day in
+            total + day.keyCount
+        }
+    }
+    var creatureSize: CGFloat {
+        45 + min(CGFloat(totalKeyCount) / 100_000, 1) * 15
+    }
+    var creatureHue: Double {
+        let maturity = min(Double(dailyStats.count) / 30, 1)
+        return 0.35 + (colorTendency - 0.5) * 0.16 * maturity
+    }
+    var mossiness: Double {
+        let totalClicks = dailyStats.reduce(0) { total, day in
+            total + day.leftClickCount + day.rightClickCount
+        }
+        let keyProgress = min(Double(totalKeyCount) / 50_000, 1)
+        let clickProgress = min(Double(totalClicks) / 10_000, 1)
+        return (keyProgress + clickProgress) / 2
+    }
     //権限関係↓
     private func requestAccessibilityPermission() {
         let options = [

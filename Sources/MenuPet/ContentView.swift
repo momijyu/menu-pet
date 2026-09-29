@@ -25,9 +25,12 @@ struct ContentView: View {
                     .frame( height: 50)
             }
             CreatureView(
-                size: 45,
+                size: activityStore.creatureSize,
                 activityLevel: activityStore.activityLevel,
                 caution: activityStore.caution,
+                hue: activityStore.creatureHue,
+                mossiness: activityStore.mossiness,
+                spaceJump: activityStore.spaceJump,
                 onTap: {
                     clickCnt += 1
                     activityStore.recordPetClick()
@@ -49,6 +52,7 @@ struct ContentView: View {
                 Text("左:\(todayStats?.leftClickCount ?? 0)回")
                 Text("マウス:\(todayStats?.mouseDistance ?? 0, specifier: "%.0f")pt")
                 Text("key:\(todayStats?.keyCount ?? 0)回")
+                Text("キー累計:\(activityStore.totalKeyCount)回")
                 Text("backsp:\(todayStats?.backspaceCount ?? 0)回")
                 Text("Enter:\(todayStats?.enterCount ?? 0)回")
                 Text("space:\(todayStats?.spaceCount ?? 0)回")
