@@ -24,10 +24,15 @@ struct ContentView: View {
                     .fill(Color(red: 0.88, green: 0.82, blue: 0.65))
                     .frame( height: 50)
             }
-            CreatureView(size: 45, onTap: {
-                clickCnt += 1
-                activityStore.recordPetClick()
-            })
+            CreatureView(
+                size: 45,
+                activityLevel: activityStore.activityLevel,
+                caution: activityStore.caution,
+                onTap: {
+                    clickCnt += 1
+                    activityStore.recordPetClick()
+                }
+            )
         }
         .frame(width: 360, height: 420)
         .overlay(alignment: .top) {
