@@ -75,6 +75,7 @@ struct ContentView: View {
                 hue: activityStore.creatureHue,
                 mossiness: activityStore.mossiness,
                 spaceJump: activityStore.spaceJump,
+                sleepProfile: activityStore.sleepProfile,
                 onTap: {
                     clickCnt += 1
                     activityStore.recordPetClick()
@@ -151,6 +152,10 @@ struct ContentView: View {
                     Text("色傾向: \(activityStore.colorTendency, specifier: "%.2f")")
                     Text("モサモサ度: \(activityStore.mossiness, specifier: "%.2f")")
                     Text("Space跳ね: \(activityStore.spaceJump, specifier: "%.2f")")
+                    Text("睡眠の型: \(activityStore.sleepProfile.rhythm.name)")
+                    Text("睡眠タイプ: \(activityStore.sleepProfile.trait?.name ?? "なし")")
+                    Text("睡眠時間: \(activityStore.sleepProfile.sleepDescription)")
+                    Text("睡眠判定の活動日: \(activityStore.sleepSampleDays)/14日")
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

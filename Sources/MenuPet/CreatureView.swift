@@ -7,6 +7,7 @@ struct CreatureView: View{
     var hue: Double
     var mossiness: Double
     var spaceJump: Double
+    var sleepProfile: SleepProfile
     var onTap: () -> Void 
     var awakeColor: Color {
         Color(hue: hue, saturation: 0.7, brightness: 0.85)
@@ -16,6 +17,8 @@ struct CreatureView: View{
     }
     @State private var isSleeping = false
     @State private var isSquished = false
+    @State private var awakeUntil: Date?
+    @State private var firstDeepSleepTapAt: Date?
     @State private var positionX: CGFloat = 0
     @State private var positionY: CGFloat = 0
     var movementSpeed: Double {
@@ -95,6 +98,7 @@ struct CreatureView: View{
         )
         .onTapGesture {
             onTap()
+            respondToTap()
             withAnimation(.easeOut(duration: 0.1)) {
                 isSquished = true
             }
@@ -111,18 +115,20 @@ struct CreatureView: View{
             }
         }
         .onAppear{
-            let hour = Calendar.current.component(.hour, from: Date())
-            isSleeping = hour >= 23 || hour < 7
+            updateSleepState()
         }
-        .task {
+        .task(id: sleepProfile) {
             while !Task.isCancelled {
-                let hour = Calendar.current.component(.hour, from: Date())
-                let shouldSleep = hour >= 23 || hour < 7
-                if isSleeping != shouldSleep {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        isSleeping = shouldSleep
-                    }
+                updateSleepState()
+                do {
+                    try await Task.sleep(for: .seconds(0.5))
+                } catch {
+                    return
                 }
+            }
+        }
+        .task(id: isSleeping) {
+            while !Task.isCancelled {
 
                 if isSleeping {
                     do {
@@ -181,6 +187,37 @@ struct CreatureView: View{
                 } catch {
                     return
                 }
+            }
+        }
+    }
+
+    private func respondToTap() {
+        let now = Date()
+        if isSleeping && sleepProfile.trait == .deep {
+            guard let previous = firstDeepSleepTapAt,
+                  now.timeIntervalSince(previous) <= 4 else {
+                firstDeepSleepTapAt = now
+                return
+            }
+        }
+
+        firstDeepSleepTapAt = nil
+        if isSleeping || sleepProfile.isSleeping(at: now) {
+            awakeUntil = now.addingTimeInterval(sleepProfile.wakeDuration)
+        }
+        updateSleepState()
+    }
+
+    private func updateSleepState() {
+        let now = Date()
+        let shouldSleep = sleepProfile.isSleeping(at: now)
+            && (awakeUntil.map { now >= $0 } ?? true)
+        guard isSleeping != shouldSleep else { return }
+        withAnimation(.easeInOut(duration: 0.3)) {
+            isSleeping = shouldSleep
+            if shouldSleep {
+                positionX = 0
+                positionY = 0
             }
         }
     }

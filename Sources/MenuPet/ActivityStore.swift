@@ -286,6 +286,26 @@ final class ActivityStore: ObservableObject {
             stats.date >= firstDay && stats.date <= today
         }
     }
+    private var recent60Stats: [DailyStats] {
+        let today = Calendar.current.startOfDay(for: Date())
+        guard let firstDay = Calendar.current.date(
+            byAdding: .day,
+            value: -59,
+            to: today
+        ) else {
+            return []
+        }
+
+        return dailyStats.filter { stats in
+            stats.date >= firstDay && stats.date <= today
+        }
+    }
+    var sleepSampleDays: Int {
+        SleepProfile.eligibleDays(from: recent60Stats).count
+    }
+    var sleepProfile: SleepProfile {
+        SleepProfile.calculate(from: recent60Stats)
+    }
     var colorTendency: Double {
         let keys = recent30Stats.reduce(0) { $0 + $1.keyCount }
         let shortcuts = recent30Stats.reduce(0) {
