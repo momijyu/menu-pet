@@ -306,6 +306,16 @@ final class ActivityStore: ObservableObject {
     var sleepProfile: SleepProfile {
         SleepProfile.calculate(from: recent60Stats)
     }
+    var floatiness: Double {
+        let days = recent30Stats
+        guard !days.isEmpty else { return 0 }
+
+        let distance = days.reduce(0.0) { $0 + $1.mouseDistance }
+        let dailyAverage = distance / Double(days.count)
+        let movement = min(dailyAverage / 1_000_000, 1)
+        let growth = min(Double(days.count) / 7, 1)
+        return movement * growth
+    }
     var colorTendency: Double {
         let keys = recent30Stats.reduce(0) { $0 + $1.keyCount }
         let shortcuts = recent30Stats.reduce(0) {

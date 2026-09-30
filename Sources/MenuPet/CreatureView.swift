@@ -1,12 +1,19 @@
 import SwiftUI
 
 struct CreatureView: View{
+    private struct MovementTaskID: Equatable {
+        let isSleeping: Bool
+        let activityStep: Int
+        let floatinessStep: Int
+    }
+
     var size: CGFloat = 40
     var activityLevel: Double
     var caution: Double
     var hue: Double
     var mossiness: Double
     var spaceJump: Double
+    var floatiness: Double
     var sleepProfile: SleepProfile
     var onTap: () -> Void 
     var awakeColor: Color {
@@ -17,10 +24,14 @@ struct CreatureView: View{
     }
     @State private var isSleeping = false
     @State private var isSquished = false
+    @State private var isDashing = false
+    @State private var isJumping = false
     @State private var awakeUntil: Date?
     @State private var firstDeepSleepTapAt: Date?
     @State private var positionX: CGFloat = 0
     @State private var positionY: CGFloat = 0
+    @State private var travelY: CGFloat = 0
+    @State private var floatingStepsRemaining = 0
     var movementSpeed: Double {
         12 + activityLevel * 28
     }
@@ -29,6 +40,13 @@ struct CreatureView: View{
     }
     var mossHalo: CGFloat {
         size * (0.02 + 0.13 * CGFloat(mossiness))
+    }
+    private var movementTaskID: MovementTaskID {
+        MovementTaskID(
+            isSleeping: isSleeping,
+            activityStep: Int((activityLevel * 20).rounded()),
+            floatinessStep: Int((floatiness * 20).rounded())
+        )
     }
 
     var body: some View{
@@ -91,6 +109,7 @@ struct CreatureView: View{
                 : .easeOut(duration: 0.22),
             value: positionY
         )
+        .offset(y: travelY)
         .offset(x: positionX)
         .scaleEffect(
             x: (isSleeping ? 1.1 : 1.0) * (isSquished ? 1.2 : 1.0),
@@ -127,7 +146,8 @@ struct CreatureView: View{
                 }
             }
         }
-        .task(id: isSleeping) {
+        .task(id: movementTaskID) {
+            floatingStepsRemaining = 0
             while !Task.isCancelled {
 
                 if isSleeping {
@@ -139,30 +159,79 @@ struct CreatureView: View{
                     continue
                 }
 
+                let restingTime = 0.5 + caution * 2
+                    + max(0, 0.5 - activityLevel) * 3
                 do {
-                    try await Task.sleep(for: .seconds(0.5 + caution * 2))
+                    try await Task.sleep(for: .seconds(restingTime))
                 } catch {
                     return
                 }
                 guard !isSleeping else { continue }
 
                 let nextX = positionX < 0 ? movementRange : -movementRange
-                let distance = abs(nextX - positionX)
                 let dashChance = max(0, activityLevel - 0.4) * 0.7
-                let shouldDash = Double.random(in: 0..<1) < dashChance
-                let speed = movementSpeed * (shouldDash ? 2.5 : 1)
-                let duration = Double(distance) / speed
-                let animation: Animation = shouldDash
-                    ? .linear(duration: duration)
-                    : .easeInOut(duration: duration)
-                withAnimation(animation) {
-                    positionX = nextX
+                let shouldDash = !isJumping
+                    && Double.random(in: 0..<1) < dashChance
+                let nextY: CGFloat
+                let explorationChance = min(max((activityLevel - 0.25) / 0.5, 0), 1)
+                if shouldDash {
+                    nextY = travelY
+                } else if floatingStepsRemaining > 0 {
+                    floatingStepsRemaining -= 1
+                    nextY = -CGFloat(65 + floatiness * 55)
+                        + CGFloat.random(in: -8...8)
+                } else if Double.random(in: 0..<1) < explorationChance {
+                    let upperRange = CGFloat(25 + activityLevel * 55 + floatiness * 25)
+                    let lowerRange = CGFloat(10 + activityLevel * 20)
+                    nextY = CGFloat.random(in: -upperRange...lowerRange)
+                } else if Double.random(in: 0..<1) < 0.05 + floatiness * 0.07 {
+                    floatingStepsRemaining = 2
+                    nextY = -CGFloat(65 + floatiness * 55)
+                } else {
+                    nextY = -CGFloat.random(in: 0...12)
                 }
 
-                do {
-                    try await Task.sleep(for: .seconds(duration))
-                } catch {
-                    return
+                let distance = hypot(
+                    Double(nextX - positionX),
+                    Double(nextY - travelY)
+                )
+                let speed = movementSpeed * (shouldDash ? 2.5 : 1)
+                let verticalShare = abs(Double(nextY - travelY)) / distance
+                let duration = distance / speed * (1 + verticalShare * 0.3)
+                if shouldDash {
+                    isDashing = true
+                    defer { isDashing = false }
+                    withAnimation(.linear(duration: duration)) {
+                        positionX = nextX
+                        travelY = nextY
+                    }
+                    do {
+                        try await Task.sleep(for: .seconds(duration))
+                    } catch {
+                        return
+                    }
+                } else {
+                    let startX = positionX
+                    let startY = travelY
+                    let steps = 12
+                    let stepDuration = duration / Double(steps)
+
+                    for step in 1...steps {
+                        guard !Task.isCancelled else { return }
+                        let progress = Double(step) / Double(steps)
+                        let eased = progress * progress * (3 - 2 * progress)
+                        // 始点と終点では揺れを0にして、次の移動へ滑らかにつなぐ。
+                        let sway = step == steps ? 0 : CGFloat(sin(eased * 2 * .pi) * 6)
+                        withAnimation(.linear(duration: stepDuration)) {
+                            positionX = startX + (nextX - startX) * eased
+                            travelY = startY + (nextY - startY) * eased + sway
+                        }
+                        do {
+                            try await Task.sleep(for: .seconds(stepDuration))
+                        } catch {
+                            return
+                        }
+                    }
                 }
             }
         }
@@ -173,20 +242,25 @@ struct CreatureView: View{
                 } catch {
                     return
                 }
-                guard !isSleeping, spaceJump > 0 else { continue }
+                guard !isSleeping, !isDashing, spaceJump > 0 else { continue }
 
+                isJumping = true
                 positionY = -(2 + CGFloat(spaceJump) * 8)
                 do {
                     try await Task.sleep(for: .milliseconds(220))
                 } catch {
+                    isJumping = false
+                    positionY = 0
                     return
                 }
                 positionY = 0
                 do {
                     try await Task.sleep(for: .milliseconds(450))
                 } catch {
+                    isJumping = false
                     return
                 }
+                isJumping = false
             }
         }
     }
@@ -218,6 +292,9 @@ struct CreatureView: View{
             if shouldSleep {
                 positionX = 0
                 positionY = 0
+                travelY = 0
+                floatingStepsRemaining = 0
+                isJumping = false
             }
         }
     }

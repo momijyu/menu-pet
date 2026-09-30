@@ -8,7 +8,24 @@ struct ContentView: View {
     @ObservedObject var activityStore: ActivityStore
     #if DEBUG
     @State private var showingDebug = false
+    @State private var isPreviewing = false
+    @State private var previewActivityLevel = 0.0
+    @State private var previewFloatiness = 0.0
     #endif
+
+    private var displayedActivityLevel: Double {
+        #if DEBUG
+        if isPreviewing { return previewActivityLevel }
+        #endif
+        return activityStore.activityLevel
+    }
+
+    private var displayedFloatiness: Double {
+        #if DEBUG
+        if isPreviewing { return previewFloatiness }
+        #endif
+        return activityStore.floatiness
+    }
 
     private var todayStats: DailyStats? {
         let today = Calendar.current.startOfDay(for: Date())
@@ -24,8 +41,14 @@ struct ContentView: View {
                     .textFieldStyle(.plain)
                     .multilineTextAlignment(.center)
                 #if DEBUG
-                Button(showingDebug ? "戻る" : "デバッグ") {
-                    showingDebug.toggle()
+                Button(showingDebug ? "戻る" : isPreviewing ? "プレビュー終了" : "デバッグ") {
+                    if showingDebug {
+                        showingDebug = false
+                    } else if isPreviewing {
+                        isPreviewing = false
+                    } else {
+                        showingDebug = true
+                    }
                 }
                 #endif
             }
@@ -56,6 +79,11 @@ struct ContentView: View {
             .padding(12)
         }
         .frame(width: 360, height: 420)
+        .onDisappear {
+            #if DEBUG
+            isPreviewing = false
+            #endif
+        }
     }
 
     private var aquarium: some View {
@@ -68,24 +96,51 @@ struct ContentView: View {
                     .fill(Color(red: 0.88, green: 0.82, blue: 0.65))
                     .frame(height: 50)
             }
-            CreatureView(
-                size: activityStore.creatureSize,
-                activityLevel: activityStore.activityLevel,
-                caution: activityStore.caution,
-                hue: activityStore.creatureHue,
-                mossiness: activityStore.mossiness,
-                spaceJump: activityStore.spaceJump,
-                sleepProfile: activityStore.sleepProfile,
-                onTap: {
-                    clickCnt += 1
-                    activityStore.recordPetClick()
-                }
-            )
+            VStack {
+                Spacer()
+                CreatureView(
+                    size: activityStore.creatureSize,
+                    activityLevel: displayedActivityLevel,
+                    caution: activityStore.caution,
+                    hue: activityStore.creatureHue,
+                    mossiness: activityStore.mossiness,
+                    spaceJump: activityStore.spaceJump,
+                    floatiness: displayedFloatiness,
+                    sleepProfile: activityStore.sleepProfile,
+                    onTap: {
+                        #if DEBUG
+                        guard !isPreviewing else { return }
+                        #endif
+                        clickCnt += 1
+                        activityStore.recordPetClick()
+                    }
+                )
+                .padding(.bottom, 58 + CGFloat(displayedActivityLevel) * 80)
+            }
+            #if DEBUG
+            if isPreviewing {
+                previewControls
+                    .padding(8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            }
+            #endif
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     #if DEBUG
+    private var previewControls: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("活動量: \(previewActivityLevel, specifier: "%.1f")")
+            Slider(value: $previewActivityLevel, in: 0...1, step: 0.1)
+            Text("浮きやすさ: \(previewFloatiness, specifier: "%.1f")")
+            Slider(value: $previewFloatiness, in: 0...1, step: 0.1)
+        }
+        .padding(8)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
     private func recent30Total(_ keyPath: KeyPath<DailyStats, Int>) -> Int {
         activityStore.recent30Stats.reduce(0) { total, day in
             total + day[keyPath: keyPath]
@@ -101,6 +156,12 @@ struct ContentView: View {
     private var debugPage: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
+                Button("動きのプレビューを開く") {
+                    previewActivityLevel = activityStore.activityLevel
+                    previewFloatiness = activityStore.floatiness
+                    isPreviewing = true
+                    showingDebug = false
+                }
                 VStack(alignment: .leading, spacing: 4) {
                     Text("今日・全期間").font(.headline)
                     Group {
@@ -152,6 +213,7 @@ struct ContentView: View {
                     Text("色傾向: \(activityStore.colorTendency, specifier: "%.2f")")
                     Text("モサモサ度: \(activityStore.mossiness, specifier: "%.2f")")
                     Text("Space跳ね: \(activityStore.spaceJump, specifier: "%.2f")")
+                    Text("浮きやすさ: \(activityStore.floatiness, specifier: "%.2f")")
                     Text("睡眠の型: \(activityStore.sleepProfile.rhythm.name)")
                     Text("睡眠タイプ: \(activityStore.sleepProfile.trait?.name ?? "なし")")
                     Text("睡眠時間: \(activityStore.sleepProfile.sleepDescription)")
