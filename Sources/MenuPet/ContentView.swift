@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var isPreviewing = false
     @State private var previewActivityLevel = 0.0
     @State private var previewFloatiness = 0.0
+    @State private var previewBodyShape = 0.0
     #endif
 
     private var displayedActivityLevel: Double {
@@ -25,6 +26,13 @@ struct ContentView: View {
         if isPreviewing { return previewFloatiness }
         #endif
         return activityStore.floatiness
+    }
+
+    private var displayedBodyShape: Double {
+        #if DEBUG
+        if isPreviewing { return previewBodyShape }
+        #endif
+        return activityStore.bodyShape
     }
 
     private var todayStats: DailyStats? {
@@ -89,6 +97,7 @@ struct ContentView: View {
     private var aquarium: some View {
         ZStack {
             Color(red: 0.88,green: 0.96, blue: 0.98)
+            BubbleLayer(count: activityStore.bubbleCount)
 
             VStack {
                 Spacer()
@@ -104,6 +113,7 @@ struct ContentView: View {
                     caution: activityStore.caution,
                     hue: activityStore.creatureHue,
                     mossiness: activityStore.mossiness,
+                    bodyShape: displayedBodyShape,
                     spaceJump: activityStore.spaceJump,
                     floatiness: displayedFloatiness,
                     sleepProfile: activityStore.sleepProfile,
@@ -126,6 +136,7 @@ struct ContentView: View {
             #endif
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
     }
 
     #if DEBUG
@@ -135,6 +146,8 @@ struct ContentView: View {
             Slider(value: $previewActivityLevel, in: 0...1, step: 0.1)
             Text("浮きやすさ: \(previewFloatiness, specifier: "%.1f")")
             Slider(value: $previewFloatiness, in: 0...1, step: 0.1)
+            Text("体型: \(previewBodyShape, specifier: "%.1f")")
+            Slider(value: $previewBodyShape, in: -0.2...0.3, step: 0.1)
         }
         .padding(8)
         .background(.regularMaterial)
@@ -156,9 +169,10 @@ struct ContentView: View {
     private var debugPage: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                Button("動きのプレビューを開く") {
+                Button("動き・体型のプレビューを開く") {
                     previewActivityLevel = activityStore.activityLevel
                     previewFloatiness = activityStore.floatiness
+                    previewBodyShape = activityStore.bodyShape
                     isPreviewing = true
                     showingDebug = false
                 }
@@ -214,6 +228,8 @@ struct ContentView: View {
                     Text("モサモサ度: \(activityStore.mossiness, specifier: "%.2f")")
                     Text("Space跳ね: \(activityStore.spaceJump, specifier: "%.2f")")
                     Text("浮きやすさ: \(activityStore.floatiness, specifier: "%.2f")")
+                    Text("体型: \(activityStore.bodyShape, specifier: "%.2f")")
+                    Text("泡の数: \(activityStore.bubbleCount)個")
                     Text("睡眠の型: \(activityStore.sleepProfile.rhythm.name)")
                     Text("睡眠タイプ: \(activityStore.sleepProfile.trait?.name ?? "なし")")
                     Text("睡眠時間: \(activityStore.sleepProfile.sleepDescription)")

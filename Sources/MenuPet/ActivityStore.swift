@@ -316,6 +316,35 @@ final class ActivityStore: ObservableObject {
         let growth = min(Double(days.count) / 7, 1)
         return movement * growth
     }
+    var bubbleCount: Int {
+        let keys = recent30Stats.reduce(0) { $0 + $1.keyCount }
+        guard keys >= 1_000 else { return 4 }
+
+        let enters = recent30Stats.reduce(0) { $0 + $1.enterCount }
+        let enterRate = Double(enters) / Double(keys)
+        let extraBubbles = Int((enterRate / 0.12 * 6).rounded())
+        return min(8, max(2, 2 + extraBubbles))
+    }
+    var bodyShape: Double {
+        let days = recent30Stats.filter {
+            $0.keyCount + $0.leftClickCount + $0.rightClickCount >= 50
+        }
+        guard !days.isEmpty else { return 0 }
+
+        let keyboard = Double(days.reduce(0) { $0 + $1.keyCount }) / 3_000
+        let clicks = Double(days.reduce(0) {
+            $0 + $1.leftClickCount + $1.rightClickCount
+        }) / 500
+        let mouse = days.reduce(0.0) { $0 + $1.mouseDistance } / 500_000
+        let pointer = (clicks + mouse) / 2
+        guard keyboard + pointer > 0 else { return 0 }
+
+        let balance = (pointer - keyboard) / (pointer + keyboard)
+        let tendency = min(max(balance / 0.25, -1), 1)
+        let range = tendency >= 0 ? 0.3 : 0.2
+        let maturity = min(Double(days.count) / 14, 1)
+        return tendency * range * maturity
+    }
     var colorTendency: Double {
         let keys = recent30Stats.reduce(0) { $0 + $1.keyCount }
         let shortcuts = recent30Stats.reduce(0) {

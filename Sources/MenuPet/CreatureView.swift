@@ -12,6 +12,7 @@ struct CreatureView: View{
     var caution: Double
     var hue: Double
     var mossiness: Double
+    var bodyShape: Double
     var spaceJump: Double
     var floatiness: Double
     var sleepProfile: SleepProfile
@@ -26,6 +27,7 @@ struct CreatureView: View{
     @State private var isSquished = false
     @State private var isDashing = false
     @State private var isJumping = false
+    @State private var gazeOffset: CGFloat = 0
     @State private var awakeUntil: Date?
     @State private var firstDeepSleepTapAt: Date?
     @State private var positionX: CGFloat = 0
@@ -41,6 +43,9 @@ struct CreatureView: View{
     var mossHalo: CGFloat {
         size * (0.02 + 0.13 * CGFloat(mossiness))
     }
+    private var drawingSize: CGFloat {
+        size + mossHalo * 2 + 16
+    }
     private var movementTaskID: MovementTaskID {
         MovementTaskID(
             isSleeping: isSleeping,
@@ -51,49 +56,58 @@ struct CreatureView: View{
 
     var body: some View{
         ZStack{
-            Circle()
-                .fill(isSleeping ? sleepingColor : awakeColor)
-                .frame(width: size, height: size)
-                .background {
-                    Canvas { context, canvasSize in
-                        let center = CGPoint(
-                            x: canvasSize.width / 2,
-                            y: canvasSize.height / 2
-                        )
-                        let color = isSleeping ? sleepingColor : awakeColor
-                        let dotCount = 220
+            ZStack {
+                Circle()
+                    .fill(isSleeping ? sleepingColor : awakeColor)
+                    .frame(width: size, height: size)
+                    .background {
+                        Canvas { context, canvasSize in
+                            let center = CGPoint(
+                                x: canvasSize.width / 2,
+                                y: canvasSize.height / 2
+                            )
+                            let color = isSleeping ? sleepingColor : awakeColor
+                            let dotCount = 220
 
-                        for index in 0..<dotCount {
-                            let angle = CGFloat(index) * 2 * .pi / CGFloat(dotCount)
-                            let variation = CGFloat((index * 37) % 101) / 100
-                            let radius = size / 2 + mossHalo * (variation - 0.25)
-                            let dotSize = (0.6 + variation * 1.1)
-                                * (0.3 + CGFloat(mossiness) * 0.7)
-                            let point = CGPoint(
-                                x: center.x + cos(angle) * radius,
-                                y: center.y + sin(angle) * radius
-                            )
-                            let dot = Path(ellipseIn: CGRect(
-                                x: point.x - dotSize / 2,
-                                y: point.y - dotSize / 2,
-                                width: dotSize,
-                                height: dotSize
-                            ))
-                            context.fill(
-                                dot,
-                                with: .color(color.opacity(Double(0.2 + variation * 0.35)))
-                            )
+                            for index in 0..<dotCount {
+                                let angle = CGFloat(index) * 2 * .pi / CGFloat(dotCount)
+                                let variation = CGFloat((index * 37) % 101) / 100
+                                let radius = size / 2 + mossHalo * (variation - 0.25)
+                                let dotSize = (0.6 + variation * 1.1)
+                                    * (0.3 + CGFloat(mossiness) * 0.7)
+                                let point = CGPoint(
+                                    x: center.x + cos(angle) * radius,
+                                    y: center.y + sin(angle) * radius
+                                )
+                                let dot = Path(ellipseIn: CGRect(
+                                    x: point.x - dotSize / 2,
+                                    y: point.y - dotSize / 2,
+                                    width: dotSize,
+                                    height: dotSize
+                                ))
+                                context.fill(
+                                    dot,
+                                    with: .color(color.opacity(Double(0.2 + variation * 0.35)))
+                                )
+                            }
                         }
+                        .frame(width: size + mossHalo * 2 + 4,
+                               height: size + mossHalo * 2 + 4)
+                        .blur(radius: 1)
                     }
-                    .frame(width: size + mossHalo * 2 + 4,
-                           height: size + mossHalo * 2 + 4)
-                    .blur(radius: 1)
+                    .scaleEffect(
+                        x: 1 + CGFloat(bodyShape) * 0.12,
+                        y: 1 - CGFloat(bodyShape) * 0.12
+                    )
+                HStack {
+                    EyeView(size: size, isSleeping: isSleeping, gazeOffset: gazeOffset)
+                    EyeView(size: size, isSleeping: isSleeping, gazeOffset: gazeOffset)
                 }
-            HStack{
-                EyeView(size: size, isSleeping: isSleeping)
-                EyeView(size: size, isSleeping: isSleeping)
+                .offset(y: -size * 0.08)
             }
-            .offset(y: -size * 0.08)
+            .frame(width: drawingSize, height: drawingSize)
+            .drawingGroup()
+
             if isSleeping {
                 Text("Zzz...")
                     .font(.system(size: size * 0.25))
@@ -148,6 +162,7 @@ struct CreatureView: View{
         }
         .task(id: movementTaskID) {
             floatingStepsRemaining = 0
+            gazeOffset = 0
             while !Task.isCancelled {
 
                 if isSleeping {
@@ -195,13 +210,26 @@ struct CreatureView: View{
                     Double(nextX - positionX),
                     Double(nextY - travelY)
                 )
-                let speed = movementSpeed * (shouldDash ? 2.5 : 1)
+                let speed = movementSpeed
                 let verticalShare = abs(Double(nextY - travelY)) / distance
                 let duration = distance / speed * (1 + verticalShare * 0.3)
+
+                let gazeDirection: CGFloat = nextX > positionX ? 1 : -1
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    gazeOffset = gazeDirection * size * 0.055
+                }
+                let lookAheadTime = 0.25 + caution * 0.5
+                do {
+                    try await Task.sleep(for: .seconds(lookAheadTime))
+                } catch {
+                    return
+                }
+                guard !isSleeping else { continue }
+
                 if shouldDash {
                     isDashing = true
                     defer { isDashing = false }
-                    withAnimation(.linear(duration: duration)) {
+                    withAnimation(.timingCurve(0.2, 0.5, 0.6, 1, duration: duration)) {
                         positionX = nextX
                         travelY = nextY
                     }
@@ -232,6 +260,9 @@ struct CreatureView: View{
                             return
                         }
                     }
+                }
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    gazeOffset = 0
                 }
             }
         }
@@ -293,6 +324,7 @@ struct CreatureView: View{
                 positionX = 0
                 positionY = 0
                 travelY = 0
+                gazeOffset = 0
                 floatingStepsRemaining = 0
                 isJumping = false
             }
@@ -303,6 +335,7 @@ struct CreatureView: View{
 struct EyeView: View {
     var size: CGFloat
     var isSleeping: Bool
+    var gazeOffset: CGFloat
 
     var body: some View {
         Ellipse()
@@ -311,5 +344,6 @@ struct EyeView: View {
                 width: size * 0.1,
                 height: isSleeping ? size * 0.025 : size * 0.1
             )
+            .offset(x: isSleeping ? 0 : gazeOffset)
     }
 }
