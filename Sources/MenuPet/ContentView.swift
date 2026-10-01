@@ -5,12 +5,20 @@ import AppKit
 struct ContentView: View {
     @AppStorage("creatureName")private var creatureName = "なぞちゃん"
     @AppStorage("creatureClickCnt")private var clickCnt = 0
+    @AppStorage("lastWelcomedActivityDay") private var lastWelcomedActivityDay = 0.0
     @ObservedObject var activityStore: ActivityStore
+    @State private var welcomeBackTrigger = 0
     #if DEBUG
     @State private var showingDebug = false
     @State private var isPreviewing = false
     @State private var previewControlsExpanded = true
+    @State private var previewPersonalityExpanded = false
     @State private var previewActivityLevel = 0.0
+    @State private var previewCaution = 0.0
+    @State private var previewMimicry = 0.0
+    @State private var previewAffection = 0.0
+    @State private var previewExploration = 0.0
+    @State private var previewCornerAffinity = 0.0
     @State private var previewFloatiness = 0.0
     @State private var previewBodyShape = 0.0
     @State private var previewHue = 0.35
@@ -21,6 +29,41 @@ struct ContentView: View {
         if isPreviewing { return previewActivityLevel }
         #endif
         return activityStore.activityLevel
+    }
+
+    private var displayedCaution: Double {
+        #if DEBUG
+        if isPreviewing { return previewCaution }
+        #endif
+        return activityStore.caution
+    }
+
+    private var displayedMimicry: Double {
+        #if DEBUG
+        if isPreviewing { return previewMimicry }
+        #endif
+        return activityStore.mimicry
+    }
+
+    private var displayedAffection: Double {
+        #if DEBUG
+        if isPreviewing { return previewAffection }
+        #endif
+        return activityStore.affection
+    }
+
+    private var displayedExploration: Double {
+        #if DEBUG
+        if isPreviewing { return previewExploration }
+        #endif
+        return activityStore.exploration
+    }
+
+    private var displayedCornerAffinity: Double {
+        #if DEBUG
+        if isPreviewing { return previewCornerAffinity }
+        #endif
+        return activityStore.cornerAffinity
     }
 
     private var displayedFloatiness: Double {
@@ -50,6 +93,19 @@ struct ContentView: View {
         return activityStore.dailyStats.first {
             Calendar.current.isDate($0.date, inSameDayAs: today)
         }
+    }
+    private func greetAfterAbsenceIfNeeded() {
+        guard let previousDay = activityStore.lastActiveDayBeforeToday,
+              let dayGap = activityStore.daysSinceLastActiveDay,
+              dayGap >= 4 else {
+            return
+        }
+        let previousDayValue = previousDay.timeIntervalSince1970
+        guard lastWelcomedActivityDay != previousDayValue else {
+            return
+        }
+        lastWelcomedActivityDay = previousDayValue
+        welcomeBackTrigger += 1
     }
     var body: some View {
         VStack(spacing: 0) {
@@ -124,12 +180,20 @@ struct ContentView: View {
                 CreatureView(
                     size: activityStore.creatureSize,
                     activityLevel: displayedActivityLevel,
-                    caution: activityStore.caution,
+                    caution: displayedCaution,
                     hue: displayedHue,
                     mossiness: activityStore.mossiness,
                     bodyShape: displayedBodyShape,
                     spaceJump: activityStore.spaceJump,
                     floatiness: displayedFloatiness,
+                    mimicry: displayedMimicry,
+                    affection: displayedAffection,
+                    exploration: displayedExploration,
+                    cornerAffinity: displayedCornerAffinity,
+                    undoTendency: activityStore.undoTendency,
+                    tidiness: activityStore.tidiness,
+                    habitStrength: activityStore.habitStrength,
+                    welcomeBackTrigger: welcomeBackTrigger,
                     sleepProfile: activityStore.sleepProfile,
                     onTap: {
                         #if DEBUG
@@ -151,6 +215,12 @@ struct ContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
+        .onAppear {
+            greetAfterAbsenceIfNeeded()
+        }
+        .onDisappear {
+            welcomeBackTrigger = 0
+        }
     }
 
     #if DEBUG
@@ -159,12 +229,26 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("活動量: \(previewActivityLevel, specifier: "%.1f")")
                 Slider(value: $previewActivityLevel, in: 0...1, step: 0.1)
-                Text("浮きやすさ: \(previewFloatiness, specifier: "%.1f")")
-                Slider(value: $previewFloatiness, in: 0...1, step: 0.1)
-                Text("体型: \(previewBodyShape, specifier: "%.1f")")
-                Slider(value: $previewBodyShape, in: -0.2...0.3, step: 0.1)
-                Text("色相: \(previewHue, specifier: "%.2f")")
-                Slider(value: $previewHue, in: 0.25...0.45, step: 0.01)
+                if !previewPersonalityExpanded {
+                    Text("浮きやすさ: \(previewFloatiness, specifier: "%.1f")")
+                    Slider(value: $previewFloatiness, in: 0...1, step: 0.1)
+                    Text("体型: \(previewBodyShape, specifier: "%.1f")")
+                    Slider(value: $previewBodyShape, in: -0.2...0.3, step: 0.1)
+                    Text("色相: \(previewHue, specifier: "%.2f")")
+                    Slider(value: $previewHue, in: 0.25...0.45, step: 0.01)
+                }
+                DisclosureGroup("性格", isExpanded: $previewPersonalityExpanded) {
+                    Text("慎重さ: \(previewCaution, specifier: "%.1f")")
+                    Slider(value: $previewCaution, in: 0...1, step: 0.1)
+                    Text("ものまね度: \(previewMimicry, specifier: "%.1f")")
+                    Slider(value: $previewMimicry, in: 0...1, step: 0.1)
+                    Text("ふれあい度: \(previewAffection, specifier: "%.1f")")
+                    Slider(value: $previewAffection, in: 0...1, step: 0.1)
+                    Text("探検度: \(previewExploration, specifier: "%.1f")")
+                    Slider(value: $previewExploration, in: 0...1, step: 0.1)
+                    Text("すみっこ好き: \(previewCornerAffinity, specifier: "%.1f")")
+                    Slider(value: $previewCornerAffinity, in: 0...1, step: 0.1)
+                }
             }
         }
         .frame(width: 200)
@@ -192,6 +276,11 @@ struct ContentView: View {
                     if !isPreviewing {
                         previewControlsExpanded = true
                         previewActivityLevel = activityStore.activityLevel
+                        previewCaution = activityStore.caution
+                        previewMimicry = activityStore.mimicry
+                        previewAffection = activityStore.affection
+                        previewExploration = activityStore.exploration
+                        previewCornerAffinity = activityStore.cornerAffinity
                         previewFloatiness = activityStore.floatiness
                         previewBodyShape = activityStore.bodyShape
                         previewHue = activityStore.creatureHue
@@ -214,9 +303,11 @@ struct ContentView: View {
                         Text("Backspace: \(todayStats?.backspaceCount ?? 0)回")
                         Text("Enter: \(todayStats?.enterCount ?? 0)回")
                         Text("Space: \(todayStats?.spaceCount ?? 0)回")
+                        Text("矢印キー: \(todayStats?.arrowCount ?? 0)回")
                         Text("⌘C: \(todayStats?.copyCount ?? 0)回")
                         Text("⌘V: \(todayStats?.pasteCount ?? 0)回")
                         Text("⌘A: \(todayStats?.selectAllCount ?? 0)回")
+                        Text("⌘Z: \(todayStats?.undoCount ?? 0)回")
                     }
                 }
 
@@ -234,15 +325,25 @@ struct ContentView: View {
                     }
                     Group {
                         Text("Space: \(recent30Total(\.spaceCount))回")
+                        Text("矢印キー: \(recent30Total(\.arrowCount))回")
                         Text("⌘C: \(recent30Total(\.copyCount))回")
                         Text("⌘V: \(recent30Total(\.pasteCount))回")
                         Text("⌘A: \(recent30Total(\.selectAllCount))回")
+                        Text("⌘Z: \(recent30Total(\.undoCount))回")
                     }
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("内部ステータス").font(.headline)
                     Text("慎重さ: \(activityStore.caution, specifier: "%.2f")")
+                    Text("ものまね度: \(activityStore.mimicry, specifier: "%.2f")")
+                    Text("ふれあい度: \(activityStore.affection, specifier: "%.2f")")
+                    Text("探検度: \(activityStore.exploration, specifier: "%.2f")")
+                    Text("すみっこ好き: \(activityStore.cornerAffinity, specifier: "%.2f")")
+                    Text("うっかり度: \(activityStore.undoTendency, specifier: "%.2f")")
+                    Text("整頓好き: \(activityStore.tidiness, specifier: "%.2f")")
+                    Text("連続活動日: \(activityStore.consecutiveActiveDays)日")
+                    Text("習慣度: \(activityStore.habitStrength, specifier: "%.2f")")
                     Text("キー活動量: \(activityStore.keyActivity, specifier: "%.2f")")
                     Text("クリック活動量: \(activityStore.clickActivity, specifier: "%.2f")")
                     Text("マウス活動量: \(activityStore.mouseActivity, specifier: "%.2f")")

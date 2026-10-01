@@ -11,10 +11,12 @@ struct DailyStats: Codable {
     var backspaceCount = 0
     var enterCount = 0
     var spaceCount = 0
+    var arrowCount = 0
     var activityByHour: [Int] = Array(repeating: 0, count: 24)
     var copyCount = 0
     var pasteCount = 0
     var selectAllCount = 0
+    var undoCount = 0
 
     enum CodingKeys: String, CodingKey {
         case date
@@ -27,10 +29,12 @@ struct DailyStats: Codable {
         case backspaceCount
         case enterCount
         case spaceCount
+        case arrowCount
         case activityByHour
         case copyCount
         case pasteCount
         case selectAllCount
+        case undoCount
     }
 
     init(
@@ -44,10 +48,12 @@ struct DailyStats: Codable {
         backspaceCount: Int = 0,
         enterCount: Int = 0,
         spaceCount: Int = 0,
+        arrowCount: Int = 0,
         activityByHour: [Int] = Array(repeating: 0, count: 24),
         copyCount: Int = 0,
         pasteCount: Int = 0,
-        selectAllCount: Int = 0
+        selectAllCount: Int = 0,
+        undoCount: Int = 0
 
     ) {
         self.date = date
@@ -60,10 +66,12 @@ struct DailyStats: Codable {
         self.enterCount = enterCount
         self.backspaceCount = backspaceCount
         self.spaceCount = spaceCount
+        self.arrowCount = arrowCount
         self.activityByHour = activityByHour
         self.pasteCount = pasteCount
         self.copyCount = copyCount
         self.selectAllCount = selectAllCount
+        self.undoCount = undoCount
 
     }
 
@@ -98,6 +106,8 @@ struct DailyStats: Codable {
 
         spaceCount = try readCount(.spaceCount)
 
+        arrowCount = try readCount(.arrowCount)
+
         activityByHour = try container.decodeIfPresent(
             [Int].self,
             forKey: .activityByHour
@@ -108,5 +118,6 @@ struct DailyStats: Codable {
         pasteCount = try readCount(.pasteCount)
         
         selectAllCount = try readCount(.selectAllCount)
+        undoCount = try readCount(.undoCount)
     }
 }

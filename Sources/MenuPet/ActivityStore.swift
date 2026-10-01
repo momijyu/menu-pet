@@ -238,6 +238,9 @@ final class ActivityStore: ObservableObject {
 
             case 49:
                 stats.spaceCount += 1
+
+            case 123, 124, 125, 126:
+                stats.arrowCount += 1
             
             default:
                 break
@@ -252,6 +255,9 @@ final class ActivityStore: ObservableObject {
 
                 case 0:
                     stats.selectAllCount += 1
+
+                case 6:
+                    stats.undoCount += 1
                 default:
                     break
                 }
@@ -285,6 +291,45 @@ final class ActivityStore: ObservableObject {
         return dailyStats.filter { stats in
             stats.date >= firstDay && stats.date <= today
         }
+    }
+    private var activeDayDates: Set<Date> {
+        Set(dailyStats.filter { day in
+            day.keyCount + day.leftClickCount + day.rightClickCount >= 50
+                || day.mouseDistance >= 50_000
+        }.map { Calendar.current.startOfDay(for: $0.date) })
+    }
+    var consecutiveActiveDays: Int {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let activeDays = activeDayDates
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: today) else {
+            return 0
+        }
+        var day = activeDays.contains(today) ? today : yesterday
+        var count = 0
+
+        while activeDays.contains(day) {
+            count += 1
+            guard let previous = calendar.date(byAdding: .day, value: -1, to: day) else {
+                break
+            }
+            day = previous
+        }
+        return count
+    }
+    var habitStrength: Double {
+        min(Double(consecutiveActiveDays) / 14, 1)
+    }
+    var lastActiveDayBeforeToday: Date? {
+        let today = Calendar.current.startOfDay(for: Date())
+        return activeDayDates.filter { $0 < today }.max()
+    }
+    var daysSinceLastActiveDay: Int? {
+        guard let previousDay = lastActiveDayBeforeToday else { return nil }
+        let today = Calendar.current.startOfDay(for: Date())
+        return Calendar.current.dateComponents(
+            [.day], from: previousDay, to: today
+        ).day
     }
     private var recent60Stats: [DailyStats] {
         let today = Calendar.current.startOfDay(for: Date())
@@ -380,6 +425,59 @@ final class ActivityStore: ObservableObject {
         let spaces = recentStats.reduce(0) { $0 + $1.spaceCount }
         guard keys > 0 else { return 0 }
         return min(Double(spaces) / Double(keys) * 4, 1)
+    }
+    var mimicry: Double {
+        let keys = recent30Stats.reduce(0) { $0 + $1.keyCount }
+        let copies = recent30Stats.reduce(0) { $0 + $1.copyCount + $1.pasteCount }
+        guard keys > 0 else { return 0 }
+        return min(Double(copies) / Double(keys) * 50, 1)
+    }
+    var affection: Double {
+        let touches = recent30Stats.reduce(0) { $0 + $1.petClickCount }
+        return min(Double(touches) / 20, 1)
+    }
+    var exploration: Double {
+        let keys = recent30Stats.reduce(0) { $0 + $1.keyCount }
+        let arrows = recent30Stats.reduce(0) { $0 + $1.arrowCount }
+        guard keys > 0 else { return 0 }
+
+        let arrowRate = Double(arrows) / Double(keys)
+        let experience = min(Double(keys) / 1_000, 1)
+        return min(arrowRate * 12, 1) * experience
+    }
+    var cornerAffinity: Double {
+        let days = recent30Stats.filter {
+            $0.keyCount + $0.leftClickCount + $0.rightClickCount >= 50
+        }
+        guard !days.isEmpty else { return 0 }
+
+        let backspaces = days.reduce(0) { $0 + $1.backspaceCount }
+        let enters = days.reduce(0) { $0 + $1.enterCount }
+        guard backspaces + enters > 0 else { return 0 }
+
+        let cautionRate = Double(backspaces) / Double(backspaces + enters)
+        let dailyMouseDistance = days.reduce(0.0) { $0 + $1.mouseDistance }
+            / Double(days.count)
+        let stillness = 1 - min(dailyMouseDistance / 500_000, 1)
+        let tendency = (cautionRate - 0.45) * 1.2 + (stillness - 0.5) * 0.6
+        let maturity = min(Double(days.count) / 7, 1)
+        return min(max(tendency, 0), 1) * maturity
+    }
+    var undoTendency: Double {
+        let keys = recent30Stats.reduce(0) { $0 + $1.keyCount }
+        let undos = recent30Stats.reduce(0) { $0 + $1.undoCount }
+        guard keys > 0 else { return 0 }
+
+        let experience = min(Double(keys) / 1_000, 1)
+        return min(Double(undos) / Double(keys) * 80, 1) * experience
+    }
+    var tidiness: Double {
+        let keys = recent30Stats.reduce(0) { $0 + $1.keyCount }
+        let selectAlls = recent30Stats.reduce(0) { $0 + $1.selectAllCount }
+        guard keys > 0 else { return 0 }
+
+        let experience = min(Double(keys) / 1_000, 1)
+        return min(Double(selectAlls) / Double(keys) * 100, 1) * experience
     }
 
     //活動量キー
