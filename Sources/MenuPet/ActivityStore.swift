@@ -354,11 +354,11 @@ final class ActivityStore: ObservableObject {
         let rightClicks = recent30Stats.reduce(0) { $0 + $1.rightClickCount }
 
         let shortcutRate = keys > 0
-            ? min(Double(shortcuts) / Double(keys) * 10, 1)
+            ? min(Double(shortcuts) / Double(keys) * 100, 1)
             : 0.5
         let clicks = leftClicks + rightClicks
         let rightClickRate = clicks > 0
-            ? min(Double(rightClicks) / Double(clicks) * 3, 1)
+            ? min(Double(rightClicks) / Double(clicks) * 50, 1)
             : 0.5
 
         return (shortcutRate + rightClickRate) / 2
@@ -426,8 +426,11 @@ final class ActivityStore: ObservableObject {
         45 + min(CGFloat(totalKeyCount) / 100_000, 1) * 15
     }
     var creatureHue: Double {
-        let maturity = min(Double(dailyStats.count) / 30, 1)
-        return 0.35 + (colorTendency - 0.5) * 0.16 * maturity
+        let activeDays = recent30Stats.filter {
+            $0.keyCount + $0.leftClickCount + $0.rightClickCount >= 50
+        }.count
+        let maturity = min(Double(activeDays) / 14, 1)
+        return 0.35 + (colorTendency - 0.5) * 0.2 * maturity
     }
     var mossiness: Double {
         let totalClicks = dailyStats.reduce(0) { total, day in

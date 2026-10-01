@@ -9,9 +9,11 @@ struct ContentView: View {
     #if DEBUG
     @State private var showingDebug = false
     @State private var isPreviewing = false
+    @State private var previewControlsExpanded = true
     @State private var previewActivityLevel = 0.0
     @State private var previewFloatiness = 0.0
     @State private var previewBodyShape = 0.0
+    @State private var previewHue = 0.35
     #endif
 
     private var displayedActivityLevel: Double {
@@ -35,6 +37,13 @@ struct ContentView: View {
         return activityStore.bodyShape
     }
 
+    private var displayedHue: Double {
+        #if DEBUG
+        if isPreviewing { return previewHue }
+        #endif
+        return activityStore.creatureHue
+    }
+
     private var todayStats: DailyStats? {
         let today = Calendar.current.startOfDay(for: Date())
 
@@ -49,6 +58,11 @@ struct ContentView: View {
                     .textFieldStyle(.plain)
                     .multilineTextAlignment(.center)
                 #if DEBUG
+                if isPreviewing && !showingDebug {
+                    Button("デバッグへ") {
+                        showingDebug = true
+                    }
+                }
                 Button(showingDebug ? "戻る" : isPreviewing ? "プレビュー終了" : "デバッグ") {
                     if showingDebug {
                         showingDebug = false
@@ -111,7 +125,7 @@ struct ContentView: View {
                     size: activityStore.creatureSize,
                     activityLevel: displayedActivityLevel,
                     caution: activityStore.caution,
-                    hue: activityStore.creatureHue,
+                    hue: displayedHue,
                     mossiness: activityStore.mossiness,
                     bodyShape: displayedBodyShape,
                     spaceJump: activityStore.spaceJump,
@@ -131,7 +145,7 @@ struct ContentView: View {
             if isPreviewing {
                 previewControls
                     .padding(8)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
             }
             #endif
         }
@@ -141,14 +155,19 @@ struct ContentView: View {
 
     #if DEBUG
     private var previewControls: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("活動量: \(previewActivityLevel, specifier: "%.1f")")
-            Slider(value: $previewActivityLevel, in: 0...1, step: 0.1)
-            Text("浮きやすさ: \(previewFloatiness, specifier: "%.1f")")
-            Slider(value: $previewFloatiness, in: 0...1, step: 0.1)
-            Text("体型: \(previewBodyShape, specifier: "%.1f")")
-            Slider(value: $previewBodyShape, in: -0.2...0.3, step: 0.1)
+        DisclosureGroup("調整パネル", isExpanded: $previewControlsExpanded) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("活動量: \(previewActivityLevel, specifier: "%.1f")")
+                Slider(value: $previewActivityLevel, in: 0...1, step: 0.1)
+                Text("浮きやすさ: \(previewFloatiness, specifier: "%.1f")")
+                Slider(value: $previewFloatiness, in: 0...1, step: 0.1)
+                Text("体型: \(previewBodyShape, specifier: "%.1f")")
+                Slider(value: $previewBodyShape, in: -0.2...0.3, step: 0.1)
+                Text("色相: \(previewHue, specifier: "%.2f")")
+                Slider(value: $previewHue, in: 0.25...0.45, step: 0.01)
+            }
         }
+        .frame(width: 200)
         .padding(8)
         .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -169,11 +188,15 @@ struct ContentView: View {
     private var debugPage: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                Button("動き・体型のプレビューを開く") {
-                    previewActivityLevel = activityStore.activityLevel
-                    previewFloatiness = activityStore.floatiness
-                    previewBodyShape = activityStore.bodyShape
-                    isPreviewing = true
+                Button(isPreviewing ? "プレビューに戻る" : "動き・見た目のプレビューを開く") {
+                    if !isPreviewing {
+                        previewControlsExpanded = true
+                        previewActivityLevel = activityStore.activityLevel
+                        previewFloatiness = activityStore.floatiness
+                        previewBodyShape = activityStore.bodyShape
+                        previewHue = activityStore.creatureHue
+                        isPreviewing = true
+                    }
                     showingDebug = false
                 }
                 VStack(alignment: .leading, spacing: 4) {
