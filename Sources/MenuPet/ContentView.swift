@@ -8,6 +8,7 @@ struct ContentView: View {
     @AppStorage("lastWelcomedActivityDay") private var lastWelcomedActivityDay = 0.0
     @ObservedObject var activityStore: ActivityStore
     @State private var welcomeBackTrigger = 0
+    @State private var aquariumDate = Date()
     #if DEBUG
     @State private var showingDebug = false
     @State private var isPreviewing = false
@@ -16,6 +17,7 @@ struct ContentView: View {
     @State private var previewActivityLevel = 0.0
     @State private var previewBubbleCount = 4
     @State private var previewHeartSparkle = false
+    @State private var previewFlowerAccessory = false
     @State private var previewCaution = 0.0
     @State private var previewMimicry = 0.0
     @State private var previewAffection = 0.0
@@ -24,7 +26,41 @@ struct ContentView: View {
     @State private var previewFloatiness = 0.0
     @State private var previewBodyShape = 0.0
     @State private var previewHue = 0.35
+    @State private var previewAquariumHour = 12
     #endif
+
+    private var displayedAquariumHour: Double {
+        #if DEBUG
+        if isPreviewing { return Double(previewAquariumHour) }
+        #endif
+        let hour = Calendar.current.component(.hour, from: aquariumDate)
+        let minute = Calendar.current.component(.minute, from: aquariumDate)
+        return Double(hour) + Double(minute) / 60
+    }
+
+    private var daylightLevel: Double {
+        func smoothstep(_ start: Double, _ end: Double) -> Double {
+            let progress = min(max((displayedAquariumHour - start) / (end - start), 0), 1)
+            return progress * progress * (3 - 2 * progress)
+        }
+        return min(smoothstep(5, 8), 1 - smoothstep(17, 20))
+    }
+
+    private var waterColor: Color {
+        Color(
+            red: 0.10 + 0.78 * daylightLevel,
+            green: 0.20 + 0.76 * daylightLevel,
+            blue: 0.32 + 0.66 * daylightLevel
+        )
+    }
+
+    private var sandColor: Color {
+        Color(
+            red: 0.37 + 0.51 * daylightLevel,
+            green: 0.37 + 0.45 * daylightLevel,
+            blue: 0.40 + 0.25 * daylightLevel
+        )
+    }
 
     private var displayedActivityLevel: Double {
         #if DEBUG
@@ -45,6 +81,13 @@ struct ContentView: View {
         if isPreviewing { return previewHeartSparkle ? 1 : 0 }
         #endif
         return activityStore.hasHeartSparkle ? 0.3 : 0
+    }
+
+    private var displayedFlowerAccessory: Bool {
+        #if DEBUG
+        if isPreviewing { return previewFlowerAccessory }
+        #endif
+        return activityStore.hasFamiliarPlace
     }
 
     private var displayedCaution: Double {
@@ -182,7 +225,8 @@ struct ContentView: View {
 
     private var aquarium: some View {
         ZStack {
-            Color(red: 0.88,green: 0.96, blue: 0.98)
+            waterColor
+                .animation(.easeInOut(duration: 1.5), value: daylightLevel)
             BubbleLayer(
                 count: displayedBubbleCount,
                 affection: displayedAffection,
@@ -192,8 +236,9 @@ struct ContentView: View {
             VStack {
                 Spacer()
                 Rectangle()
-                    .fill(Color(red: 0.88, green: 0.82, blue: 0.65))
+                    .fill(sandColor)
                     .frame(height: 50)
+                    .animation(.easeInOut(duration: 1.5), value: daylightLevel)
             }
             VStack {
                 Spacer()
@@ -213,6 +258,7 @@ struct ContentView: View {
                     undoTendency: activityStore.undoTendency,
                     tidiness: activityStore.tidiness,
                     habitStrength: activityStore.habitStrength,
+                    showsFlowerAccessory: displayedFlowerAccessory,
                     welcomeBackTrigger: welcomeBackTrigger,
                     sleepProfile: activityStore.sleepProfile,
                     onTap: {
@@ -236,7 +282,18 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
         .onAppear {
+            aquariumDate = Date()
             greetAfterAbsenceIfNeeded()
+        }
+        .task {
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(60))
+                } catch {
+                    return
+                }
+                aquariumDate = Date()
+            }
         }
         .onDisappear {
             welcomeBackTrigger = 0
@@ -250,6 +307,7 @@ struct ContentView: View {
             previewActivityLevel = activityStore.activityLevel
             previewBubbleCount = activityStore.bubbleCount
             previewHeartSparkle = activityStore.hasHeartSparkle
+            previewFlowerAccessory = activityStore.hasFamiliarPlace
             previewCaution = activityStore.caution
             previewMimicry = activityStore.mimicry
             previewAffection = activityStore.affection
@@ -258,6 +316,7 @@ struct ContentView: View {
             previewFloatiness = activityStore.floatiness
             previewBodyShape = activityStore.bodyShape
             previewHue = activityStore.creatureHue
+            previewAquariumHour = Calendar.current.component(.hour, from: Date())
             isPreviewing = true
         }
         showingDebug = false
@@ -270,6 +329,8 @@ struct ContentView: View {
                 Slider(value: $previewActivityLevel, in: 0...1, step: 0.1)
                 Stepper("泡: \(previewBubbleCount)個", value: $previewBubbleCount, in: 2...16)
                 Toggle("きらめき確認", isOn: $previewHeartSparkle)
+                Toggle("花飾り", isOn: $previewFlowerAccessory)
+                Stepper("水槽の時刻: \(previewAquariumHour)時", value: $previewAquariumHour, in: 0...23)
                 if !previewPersonalityExpanded {
                     Text("浮きやすさ: \(previewFloatiness, specifier: "%.1f")")
                     Slider(value: $previewFloatiness, in: 0...1, step: 0.1)
@@ -364,7 +425,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("実績").font(.headline)
                     Text("会いに来てくれた: \(activityStore.petTouchDays)/20日 \(activityStore.hasHeartSparkle ? "獲得" : "未獲得")")
-                    Text("いつもの場所（見た目調整中）: \(activityStore.totalActiveDays)/30日 \(activityStore.hasFamiliarPlace ? "獲得" : "未獲得")")
+                    Text("いつもの場所: \(activityStore.totalActiveDays)/30日 \(activityStore.hasFamiliarPlace ? "獲得（花飾り）" : "未獲得")")
                 }
 
                 VStack(alignment: .leading, spacing: 4) {

@@ -32,6 +32,7 @@ struct CreatureView: View{
     var undoTendency: Double
     var tidiness: Double
     var habitStrength: Double
+    var showsFlowerAccessory: Bool
     var welcomeBackTrigger: Int
     var sleepProfile: SleepProfile
     var onTap: () -> Void 
@@ -156,6 +157,10 @@ struct CreatureView: View{
                     EyeView(size: size, isSleeping: isSleeping, gazeOffset: gazeOffset)
                 }
                 .offset(y: -size * 0.08)
+                if showsFlowerAccessory {
+                    FlowerAccessory(size: size)
+                        .offset(x: -size * 0.22, y: -size * 0.43)
+                }
             }
             .frame(width: drawingSize, height: drawingSize)
             .drawingGroup()
@@ -589,5 +594,28 @@ struct EyeView: View {
                 height: isSleeping ? size * 0.025 : size * 0.1
             )
             .offset(x: isSleeping ? 0 : gazeOffset)
+    }
+}
+
+struct FlowerAccessory: View {
+    var size: CGFloat
+
+    var body: some View {
+        ZStack {
+            ForEach(0..<5) { petal in
+                let angle = Double(petal) * 2 * .pi / 5
+                Circle()
+                    .fill(Color(red: 1, green: 0.65, blue: 0.78))
+                    .frame(width: size * 0.14, height: size * 0.14)
+                    .offset(
+                        x: cos(angle) * size * 0.11,
+                        y: sin(angle) * size * 0.11
+                    )
+            }
+            Circle()
+                .fill(Color.yellow)
+                .frame(width: size * 0.13, height: size * 0.13)
+        }
+        .frame(width: size * 0.38, height: size * 0.38)
     }
 }
