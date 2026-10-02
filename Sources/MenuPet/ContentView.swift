@@ -14,6 +14,8 @@ struct ContentView: View {
     @State private var previewControlsExpanded = true
     @State private var previewPersonalityExpanded = false
     @State private var previewActivityLevel = 0.0
+    @State private var previewBubbleCount = 4
+    @State private var previewHeartSparkle = false
     @State private var previewCaution = 0.0
     @State private var previewMimicry = 0.0
     @State private var previewAffection = 0.0
@@ -29,6 +31,20 @@ struct ContentView: View {
         if isPreviewing { return previewActivityLevel }
         #endif
         return activityStore.activityLevel
+    }
+
+    private var displayedBubbleCount: Int {
+        #if DEBUG
+        if isPreviewing { return previewBubbleCount }
+        #endif
+        return activityStore.bubbleCount
+    }
+
+    private var displayedSparkleChance: Double {
+        #if DEBUG
+        if isPreviewing { return previewHeartSparkle ? 1 : 0 }
+        #endif
+        return activityStore.hasHeartSparkle ? 0.3 : 0
     }
 
     private var displayedCaution: Double {
@@ -167,7 +183,11 @@ struct ContentView: View {
     private var aquarium: some View {
         ZStack {
             Color(red: 0.88,green: 0.96, blue: 0.98)
-            BubbleLayer(count: activityStore.bubbleCount)
+            BubbleLayer(
+                count: displayedBubbleCount,
+                affection: displayedAffection,
+                sparkleChance: displayedSparkleChance
+            )
 
             VStack {
                 Spacer()
@@ -224,11 +244,32 @@ struct ContentView: View {
     }
 
     #if DEBUG
+    private func openPreview() {
+        if !isPreviewing {
+            previewControlsExpanded = true
+            previewActivityLevel = activityStore.activityLevel
+            previewBubbleCount = activityStore.bubbleCount
+            previewHeartSparkle = activityStore.hasHeartSparkle
+            previewCaution = activityStore.caution
+            previewMimicry = activityStore.mimicry
+            previewAffection = activityStore.affection
+            previewExploration = activityStore.exploration
+            previewCornerAffinity = activityStore.cornerAffinity
+            previewFloatiness = activityStore.floatiness
+            previewBodyShape = activityStore.bodyShape
+            previewHue = activityStore.creatureHue
+            isPreviewing = true
+        }
+        showingDebug = false
+    }
+
     private var previewControls: some View {
         DisclosureGroup("調整パネル", isExpanded: $previewControlsExpanded) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("活動量: \(previewActivityLevel, specifier: "%.1f")")
                 Slider(value: $previewActivityLevel, in: 0...1, step: 0.1)
+                Stepper("泡: \(previewBubbleCount)個", value: $previewBubbleCount, in: 2...16)
+                Toggle("きらめき確認", isOn: $previewHeartSparkle)
                 if !previewPersonalityExpanded {
                     Text("浮きやすさ: \(previewFloatiness, specifier: "%.1f")")
                     Slider(value: $previewFloatiness, in: 0...1, step: 0.1)
@@ -242,8 +283,8 @@ struct ContentView: View {
                     Slider(value: $previewCaution, in: 0...1, step: 0.1)
                     Text("ものまね度: \(previewMimicry, specifier: "%.1f")")
                     Slider(value: $previewMimicry, in: 0...1, step: 0.1)
-                    Text("ふれあい度: \(previewAffection, specifier: "%.1f")")
-                    Slider(value: $previewAffection, in: 0...1, step: 0.1)
+                    Text("ふれあい度: \(previewAffection, specifier: "%.2f")")
+                    Slider(value: $previewAffection, in: 0...1, step: 0.05)
                     Text("探検度: \(previewExploration, specifier: "%.1f")")
                     Slider(value: $previewExploration, in: 0...1, step: 0.1)
                     Text("すみっこ好き: \(previewCornerAffinity, specifier: "%.1f")")
@@ -273,20 +314,7 @@ struct ContentView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Button(isPreviewing ? "プレビューに戻る" : "動き・見た目のプレビューを開く") {
-                    if !isPreviewing {
-                        previewControlsExpanded = true
-                        previewActivityLevel = activityStore.activityLevel
-                        previewCaution = activityStore.caution
-                        previewMimicry = activityStore.mimicry
-                        previewAffection = activityStore.affection
-                        previewExploration = activityStore.exploration
-                        previewCornerAffinity = activityStore.cornerAffinity
-                        previewFloatiness = activityStore.floatiness
-                        previewBodyShape = activityStore.bodyShape
-                        previewHue = activityStore.creatureHue
-                        isPreviewing = true
-                    }
-                    showingDebug = false
+                    openPreview()
                 }
                 VStack(alignment: .leading, spacing: 4) {
                     Text("今日・全期間").font(.headline)
@@ -331,6 +359,12 @@ struct ContentView: View {
                         Text("⌘A: \(recent30Total(\.selectAllCount))回")
                         Text("⌘Z: \(recent30Total(\.undoCount))回")
                     }
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("実績").font(.headline)
+                    Text("会いに来てくれた: \(activityStore.petTouchDays)/20日 \(activityStore.hasHeartSparkle ? "獲得" : "未獲得")")
+                    Text("いつもの場所（見た目調整中）: \(activityStore.totalActiveDays)/30日 \(activityStore.hasFamiliarPlace ? "獲得" : "未獲得")")
                 }
 
                 VStack(alignment: .leading, spacing: 4) {

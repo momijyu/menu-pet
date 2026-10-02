@@ -298,6 +298,19 @@ final class ActivityStore: ObservableObject {
                 || day.mouseDistance >= 50_000
         }.map { Calendar.current.startOfDay(for: $0.date) })
     }
+    var petTouchDays: Int {
+        Set(dailyStats.filter { $0.petClickCount > 0 }
+            .map { Calendar.current.startOfDay(for: $0.date) }).count
+    }
+    var totalActiveDays: Int {
+        activeDayDates.count
+    }
+    var hasHeartSparkle: Bool {
+        petTouchDays >= 20
+    }
+    var hasFamiliarPlace: Bool {
+        totalActiveDays >= 30
+    }
     var consecutiveActiveDays: Int {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
@@ -357,7 +370,7 @@ final class ActivityStore: ObservableObject {
 
         let distance = days.reduce(0.0) { $0 + $1.mouseDistance }
         let dailyAverage = distance / Double(days.count)
-        let movement = min(dailyAverage / 1_000_000, 1)
+        let movement = min(dailyAverage / 2_000_000, 1)
         let growth = min(Double(days.count) / 7, 1)
         return movement * growth
     }
@@ -367,8 +380,8 @@ final class ActivityStore: ObservableObject {
 
         let enters = recent30Stats.reduce(0) { $0 + $1.enterCount }
         let enterRate = Double(enters) / Double(keys)
-        let extraBubbles = Int((enterRate / 0.12 * 6).rounded())
-        return min(8, max(2, 2 + extraBubbles))
+        let extraBubbles = Int((enterRate / 0.27 * 14).rounded())
+        return min(16, max(2, 2 + extraBubbles))
     }
     var bodyShape: Double {
         let days = recent30Stats.filter {
@@ -433,8 +446,8 @@ final class ActivityStore: ObservableObject {
         return min(Double(copies) / Double(keys) * 50, 1)
     }
     var affection: Double {
-        let touches = recent30Stats.reduce(0) { $0 + $1.petClickCount }
-        return min(Double(touches) / 20, 1)
+        let touches = recent30Stats.reduce(0) { $0 + min($1.petClickCount, 5) }
+        return min(Double(touches) / 60, 1)
     }
     var exploration: Double {
         let keys = recent30Stats.reduce(0) { $0 + $1.keyCount }
@@ -487,7 +500,7 @@ final class ActivityStore: ObservableObject {
             sum + day.keyCount
         } 
         let dailyAverage = Double(total) / Double(recentStats.count)
-        return min(dailyAverage / 3000, 1)
+        return min(dailyAverage / 10_000, 1)
     }
     //活動量クリック
     var clickActivity: Double {
@@ -498,7 +511,7 @@ final class ActivityStore: ObservableObject {
         }
         let dailyAverage = Double(total) / Double(recentStats.count)
 
-        return min(dailyAverage / 500, 1)
+        return min(dailyAverage / 1_500, 1)
     }
     //活動量マウス
     var mouseActivity: Double {
@@ -509,7 +522,7 @@ final class ActivityStore: ObservableObject {
         }
         let dailyAverage = total / Double(recentStats.count)
 
-        return min(dailyAverage / 500_000, 1)
+        return min(dailyAverage / 2_000_000, 1)
     }
     //活動量(合計)
     var activityLevel: Double {
@@ -534,8 +547,8 @@ final class ActivityStore: ObservableObject {
         let totalClicks = dailyStats.reduce(0) { total, day in
             total + day.leftClickCount + day.rightClickCount
         }
-        let keyProgress = min(Double(totalKeyCount) / 50_000, 1)
-        let clickProgress = min(Double(totalClicks) / 10_000, 1)
+        let keyProgress = min(Double(totalKeyCount) / 150_000, 1)
+        let clickProgress = min(Double(totalClicks) / 30_000, 1)
         return (keyProgress + clickProgress) / 2
     }
     //権限関係↓
