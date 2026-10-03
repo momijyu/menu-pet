@@ -9,6 +9,7 @@ struct ContentView: View {
     @ObservedObject var activityStore: ActivityStore
     @State private var welcomeBackTrigger = 0
     @State private var aquariumDate = Date()
+    @State private var showingAchievements = false
     #if DEBUG
     @State private var showingDebug = false
     @State private var isPreviewing = false
@@ -27,6 +28,8 @@ struct ContentView: View {
     @State private var previewBodyShape = 0.0
     @State private var previewHue = 0.35
     @State private var previewAquariumHour = 12
+    @State private var previewAchievementKind = 0
+    @State private var previewBadgesInAchievements = true
     #endif
 
     private var displayedAquariumHour: Double {
@@ -173,35 +176,51 @@ struct ContentView: View {
                     .textFieldStyle(.plain)
                     .multilineTextAlignment(.center)
                 #if DEBUG
-                if isPreviewing && !showingDebug {
-                    Button("デバッグへ") {
-                        showingDebug = true
+                if !showingAchievements {
+                    if isPreviewing && !showingDebug {
+                        Button("デバッグへ") {
+                            showingDebug = true
+                        }
                     }
-                }
-                Button(showingDebug ? "戻る" : isPreviewing ? "プレビュー終了" : "デバッグ") {
-                    if showingDebug {
-                        showingDebug = false
-                    } else if isPreviewing {
-                        isPreviewing = false
-                    } else {
-                        showingDebug = true
+                    Button(showingDebug ? "戻る" : isPreviewing ? "プレビュー終了" : "デバッグ") {
+                        if showingDebug {
+                            showingDebug = false
+                        } else if isPreviewing {
+                            isPreviewing = false
+                        } else {
+                            showingDebug = true
+                        }
                     }
                 }
                 #endif
             }
             .padding(12)
 
-            #if DEBUG
-            if showingDebug {
-                debugPage
+            if showingAchievements {
+                achievementsPage
             } else {
+                #if DEBUG
+                if showingDebug {
+                    debugPage
+                } else {
+                    aquarium
+                }
+                #else
                 aquarium
+                #endif
             }
-            #else
-            aquarium
-            #endif
 
             HStack {
+                Button(showingAchievements ? "水槽に戻る" : "実績") {
+                    if !showingAchievements {
+                        #if DEBUG
+                        showingDebug = false
+                        isPreviewing = false
+                        #endif
+                    }
+                    showingAchievements.toggle()
+                }
+
                 Button("保存") {
                     activityStore.saveDailyStats()
                 }
@@ -217,6 +236,7 @@ struct ContentView: View {
         }
         .frame(width: 360, height: 420)
         .onDisappear {
+            showingAchievements = false
             #if DEBUG
             isPreviewing = false
             #endif
@@ -300,6 +320,114 @@ struct ContentView: View {
         }
     }
 
+    private var achievementsPage: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                #if DEBUG
+                Toggle("バッジ配置プレビュー", isOn: $previewBadgesInAchievements)
+                #endif
+                achievementRows
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+        }
+    }
+
+    private var achievementRows: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            achievementRow("会いに来てくれた", count: activityStore.petTouchDays,
+                           goal: 20, unit: "日")
+            achievementRow("いつもの場所", count: activityStore.totalActiveDays,
+                           goal: 30, unit: "日")
+            Divider()
+            keyAchievementRow("積み重ね", count: activityStore.totalKeyCount,
+                              milestones: [50_000, 200_000, 500_000, 1_000_000], symbol: "⌨")
+            keyAchievementRow("決めた！", count: activityStore.totalCount(for: \.enterCount),
+                              milestones: [5_000, 20_000, 50_000, 100_000], symbol: "↵")
+            keyAchievementRow("ひとっ飛び", count: activityStore.totalCount(for: \.spaceCount),
+                              milestones: [3_000, 10_000, 25_000, 50_000], symbol: "━")
+            keyAchievementRow("考え直し", count: activityStore.totalCount(for: \.backspaceCount),
+                              milestones: [10_000, 30_000, 75_000, 150_000], symbol: "⌫")
+            keyAchievementRow("道しるべ", count: activityStore.totalCount(for: \.arrowCount),
+                              milestones: [1_000, 4_000, 10_000, 20_000], symbol: "✥")
+        }
+    }
+
+    private func keyAchievementRow(_ title: String, count: Int, milestones: [Int], symbol: String) -> some View {
+        let reached = milestones.prefix { count >= $0 }.count
+        let previousGoal = reached == 0 ? 0 : milestones[reached - 1]
+        let medalNames = ["銅", "銀", "金"]
+        let status = reached == 0 ? "未獲得" : reached == milestones.count
+            ? "トロフィー獲得" : "\(medalNames[reached - 1])メダル獲得"
+        #if DEBUG
+        let showBadges = showingAchievements && previewBadgesInAchievements
+        #else
+        let showBadges = true
+        #endif
+
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title).font(.headline)
+                Spacer()
+                Text(status)
+                    .foregroundStyle(reached > 0 ? Color.green : Color.secondary)
+            }
+            if reached < milestones.count {
+                let nextGoal = milestones[reached]
+                ProgressView(value: Double(min(count - previousGoal, nextGoal - previousGoal)),
+                             total: Double(nextGoal - previousGoal))
+                #if DEBUG
+                Text("累計 \(count.formatted()) 回")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                #endif
+            } else {
+                ProgressView(value: 1, total: 1)
+                #if DEBUG
+                Text("累計 \(count.formatted()) 回・最終目標達成")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                #endif
+            }
+            #if DEBUG
+            Text("区切り: \(milestones.map { $0.formatted() }.joined(separator: " → ")) 回")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            #endif
+            if showBadges {
+                HStack(spacing: 8) {
+                    ForEach(0..<milestones.count, id: \.self) { tier in
+                        AchievementBadgeView(symbol: symbol, tier: tier, isUnlocked: tier < reached)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+    }
+
+    private func achievementRow(
+        _ title: String,
+        count: Int,
+        goal: Int,
+        unit: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title).font(.headline)
+                Spacer()
+                Text(count >= goal ? "獲得" : "未獲得")
+                    .foregroundStyle(count >= goal ? Color.green : Color.secondary)
+            }
+            ProgressView(value: Double(min(count, goal)), total: Double(goal))
+            #if DEBUG
+            Text("\(count.formatted()) / \(goal.formatted()) \(unit)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            #endif
+        }
+    }
+
     #if DEBUG
     private func openPreview() {
         if !isPreviewing {
@@ -371,12 +499,43 @@ struct ContentView: View {
         }
     }
 
+    private var achievementBadgePreview: some View {
+        let symbols = ["⌨", "↵", "━", "⌫", "✥"]
+
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("実績バッジの試作").font(.headline)
+            Picker("キー", selection: $previewAchievementKind) {
+                Text("全キー入力").tag(0)
+                Text("Enter").tag(1)
+                Text("Space").tag(2)
+                Text("Backspace").tag(3)
+                Text("矢印キー").tag(4)
+            }
+            .pickerStyle(.menu)
+
+            HStack(spacing: 8) {
+                ForEach(0..<4) { tier in
+                    AchievementBadgeView(symbol: symbols[previewAchievementKind], tier: tier, isUnlocked: true)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(10)
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+
+            Text("見た目の確認用です。達成状況には連動しません。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     private var debugPage: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Button(isPreviewing ? "プレビューに戻る" : "動き・見た目のプレビューを開く") {
                     openPreview()
                 }
+                achievementBadgePreview
                 VStack(alignment: .leading, spacing: 4) {
                     Text("今日・全期間").font(.headline)
                     Group {
@@ -424,8 +583,7 @@ struct ContentView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("実績").font(.headline)
-                    Text("会いに来てくれた: \(activityStore.petTouchDays)/20日 \(activityStore.hasHeartSparkle ? "獲得" : "未獲得")")
-                    Text("いつもの場所: \(activityStore.totalActiveDays)/30日 \(activityStore.hasFamiliarPlace ? "獲得（花飾り）" : "未獲得")")
+                    achievementRows
                 }
 
                 VStack(alignment: .leading, spacing: 4) {

@@ -533,6 +533,11 @@ final class ActivityStore: ObservableObject {
             total + day.keyCount
         }
     }
+    func totalCount(for keyPath: KeyPath<DailyStats, Int>) -> Int {
+        dailyStats.reduce(0) { total, day in
+            total + day[keyPath: keyPath]
+        }
+    }
     var creatureSize: CGFloat {
         45 + min(CGFloat(totalKeyCount) / 100_000, 1) * 15
     }
