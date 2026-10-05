@@ -6,10 +6,13 @@ struct ContentView: View {
     @AppStorage("creatureName")private var creatureName = "なぞちゃん"
     @AppStorage("creatureClickCnt")private var clickCnt = 0
     @AppStorage("lastWelcomedActivityDay") private var lastWelcomedActivityDay = 0.0
+    @AppStorage("lastStreakGreetingDay") private var lastStreakGreetingDay = 0.0
     @ObservedObject var activityStore: ActivityStore
     @State private var welcomeBackTrigger = 0
+    @State private var streakGreetingTrigger = 0
     @State private var aquariumDate = Date()
     @State private var showingAchievements = false
+    @State private var isPopoverVisible = false
     #if DEBUG
     @State private var showingDebug = false
     @State private var isPreviewing = false
@@ -28,6 +31,19 @@ struct ContentView: View {
     @State private var previewBodyShape = 0.0
     @State private var previewHue = 0.35
     @State private var previewAquariumHour = 12
+    @State private var previewSpaceJump = 0.8
+    @State private var previewLandingRing = false
+    @State private var previewMimicBubbles = false
+    @State private var previewDecisionSparkle = false
+    @State private var previewHesitation = false
+    @State private var previewBubbleTrail = false
+    @State private var previewWaterPlant = false
+    @State private var previewExtraWaterPlants = 0
+    @State private var previewNightGlow = false
+    @State private var previewUndoEcho = false
+    @State private var previewNightStars = false
+    @State private var previewNightMoon = false
+    @State private var previewSandSparkleLevel = 0
     @State private var previewAchievementKind = 0
     @State private var previewBadgesInAchievements = true
     #endif
@@ -149,6 +165,94 @@ struct ContentView: View {
         return activityStore.creatureHue
     }
 
+    private var displayedSpaceJump: Double {
+        #if DEBUG
+        if isPreviewing { return previewSpaceJump }
+        #endif
+        return activityStore.spaceJump
+    }
+
+    private var landingRingChance: Double {
+        // 水槽が夜（20〜5時）の間だけ、着地の輪を出す。
+        guard daylightLevel == 0 else { return 0 }
+        #if DEBUG
+        if isPreviewing { return previewLandingRing ? 1 : 0 }
+        #endif
+        return activityStore.landingRingChance
+    }
+
+    private var mimicBubbleChance: Double {
+        #if DEBUG
+        if isPreviewing { return previewMimicBubbles ? 1 : 0 }
+        #endif
+        return activityStore.mimicBubbleChance
+    }
+
+    private var decisionSparkleChance: Double {
+        #if DEBUG
+        if isPreviewing { return previewDecisionSparkle ? 1 : 0 }
+        #endif
+        return activityStore.decisionSparkleChance
+    }
+
+    private var hesitationChance: Double {
+        #if DEBUG
+        if isPreviewing { return previewHesitation ? 1 : 0 }
+        #endif
+        return activityStore.hesitationChance
+    }
+
+    private var showsBubbleTrail: Bool {
+        #if DEBUG
+        if isPreviewing { return previewBubbleTrail }
+        #endif
+        return activityStore.hasBubbleTrail
+    }
+
+    private var showsWaterPlant: Bool {
+        #if DEBUG
+        if isPreviewing { return previewWaterPlant }
+        #endif
+        return activityStore.hasWaterPlant
+    }
+
+    private var showsNightGlow: Bool {
+        #if DEBUG
+        if isPreviewing { return previewNightGlow && daylightLevel < 0.25 }
+        #endif
+        return activityStore.hasNightGlow && daylightLevel < 0.25
+    }
+
+    private var undoEchoChance: Double {
+        #if DEBUG
+        if isPreviewing { return previewUndoEcho ? 1 : 0 }
+        #endif
+        return activityStore.undoEchoChance
+    }
+
+    private var nightStarCount: Int {
+        guard daylightLevel == 0 else { return 0 }
+        #if DEBUG
+        if isPreviewing { return previewNightStars ? 4 : 0 }
+        #endif
+        return activityStore.nightStarCount
+    }
+
+    private var showsNightMoon: Bool {
+        guard daylightLevel == 0 else { return false }
+        #if DEBUG
+        if isPreviewing { return previewNightMoon }
+        #endif
+        return activityStore.hasNightMoon
+    }
+
+    private var sandSparkleLevel: Int {
+        #if DEBUG
+        if isPreviewing { return previewSandSparkleLevel }
+        #endif
+        return activityStore.sandSparkleLevel
+    }
+
     private var todayStats: DailyStats? {
         let today = Calendar.current.startOfDay(for: Date())
 
@@ -168,6 +272,13 @@ struct ContentView: View {
         }
         lastWelcomedActivityDay = previousDayValue
         welcomeBackTrigger += 1
+    }
+    private func greetForStreakIfNeeded() {
+        let today = Calendar.current.startOfDay(for: Date()).timeIntervalSince1970
+        guard activityStore.consecutiveActiveDays >= AchievementGoals.activeStreak[0],
+              lastStreakGreetingDay != today else { return }
+        lastStreakGreetingDay = today
+        streakGreetingTrigger += 1
     }
     var body: some View {
         VStack(spacing: 0) {
@@ -235,7 +346,13 @@ struct ContentView: View {
             .padding(12)
         }
         .frame(width: 360, height: 420)
+        .onAppear {
+            guard !isPopoverVisible else { return }
+            isPopoverVisible = true
+            activityStore.recordVisit()
+        }
         .onDisappear {
+            isPopoverVisible = false
             showingAchievements = false
             #if DEBUG
             isPreviewing = false
@@ -247,17 +364,67 @@ struct ContentView: View {
         ZStack {
             waterColor
                 .animation(.easeInOut(duration: 1.5), value: daylightLevel)
+            if showsNightMoon {
+                AquariumMoonView()
+                    .transition(.opacity)
+            }
             BubbleLayer(
                 count: displayedBubbleCount,
                 affection: displayedAffection,
-                sparkleChance: displayedSparkleChance
+                sparkleChance: displayedSparkleChance,
+                mimicChance: mimicBubbleChance,
+                creatureHue: displayedHue
             )
+            if nightStarCount > 0 {
+                NightStarsView(count: nightStarCount)
+            }
+            if showsWaterPlant {
+                VStack {
+                    Spacer()
+                    WaterPlantView()
+                        .frame(width: 80, height: 105)
+                        .padding(.bottom, 47)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 20)
+                .allowsHitTesting(false)
+            }
+            #if DEBUG
+            if isPreviewing && previewExtraWaterPlants >= 1 {
+                VStack {
+                    Spacer()
+                    AquaticGrassView(compact: false)
+                        .frame(width: 72, height: 126)
+                        .padding(.bottom, 47)
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.trailing, 12)
+                .allowsHitTesting(false)
+            }
+            if isPreviewing && previewExtraWaterPlants >= 2 {
+                VStack {
+                    Spacer()
+                    AquaticGrassView(compact: true)
+                        .frame(width: 58, height: 55)
+                        .padding(.bottom, 47)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 105)
+                .allowsHitTesting(false)
+            }
+            #endif
 
             VStack {
                 Spacer()
                 Rectangle()
                     .fill(sandColor)
                     .frame(height: 50)
+                    .overlay {
+                        if sandSparkleLevel > 0 {
+                            SandSparklesView(level: sandSparkleLevel)
+                                .id(sandSparkleLevel)
+                        }
+                    }
                     .animation(.easeInOut(duration: 1.5), value: daylightLevel)
             }
             VStack {
@@ -269,7 +436,7 @@ struct ContentView: View {
                     hue: displayedHue,
                     mossiness: activityStore.mossiness,
                     bodyShape: displayedBodyShape,
-                    spaceJump: activityStore.spaceJump,
+                    spaceJump: displayedSpaceJump,
                     floatiness: displayedFloatiness,
                     mimicry: displayedMimicry,
                     affection: displayedAffection,
@@ -280,7 +447,14 @@ struct ContentView: View {
                     habitStrength: activityStore.habitStrength,
                     showsFlowerAccessory: displayedFlowerAccessory,
                     welcomeBackTrigger: welcomeBackTrigger,
+                    streakGreetingTrigger: streakGreetingTrigger,
                     sleepProfile: activityStore.sleepProfile,
+                    landingRingChance: landingRingChance,
+                    decisionSparkleChance: decisionSparkleChance,
+                    hesitationChance: hesitationChance,
+                    showsBubbleTrail: showsBubbleTrail,
+                    showsNightGlow: showsNightGlow,
+                    undoEchoChance: undoEchoChance,
                     onTap: {
                         #if DEBUG
                         guard !isPreviewing else { return }
@@ -301,9 +475,11 @@ struct ContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
+        .animation(.easeInOut(duration: 1.5), value: showsNightMoon)
         .onAppear {
             aquariumDate = Date()
             greetAfterAbsenceIfNeeded()
+            greetForStreakIfNeeded()
         }
         .task {
             while !Task.isCancelled {
@@ -317,6 +493,7 @@ struct ContentView: View {
         }
         .onDisappear {
             welcomeBackTrigger = 0
+            streakGreetingTrigger = 0
         }
     }
 
@@ -339,21 +516,45 @@ struct ContentView: View {
                            goal: 20, unit: "日")
             achievementRow("いつもの場所", count: activityStore.totalActiveDays,
                            goal: 30, unit: "日")
+            achievementRow("根を張る", count: activityStore.totalActiveDays,
+                           goal: AchievementGoals.waterPlantActiveDays, unit: "日")
+            keyAchievementRow("ずっと一緒", count: activityStore.longestActiveStreak,
+                              milestones: AchievementGoals.activeStreak, symbol: "♡", unit: "日")
+            keyAchievementRow("夜の常連", count: activityStore.nightActivityDays,
+                              milestones: AchievementGoals.nightActivityDays, symbol: "✦", unit: "日")
+            keyAchievementRow("また来たよ", count: activityStore.visitAchievementCount,
+                              milestones: AchievementGoals.visits, symbol: "⌂")
+            keyAchievementRow("なかよしの証", count: activityStore.petTouchAchievementCount,
+                              milestones: AchievementGoals.petTouches, symbol: "♡")
+            #if DEBUG
+            Text("訪問は1日最大3回、ふれあいは1日最大5回を実績に加算")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            #endif
             Divider()
             keyAchievementRow("積み重ね", count: activityStore.totalKeyCount,
-                              milestones: [50_000, 200_000, 500_000, 1_000_000], symbol: "⌨")
+                              milestones: AchievementGoals.allKeys, symbol: "⌨")
             keyAchievementRow("決めた！", count: activityStore.totalCount(for: \.enterCount),
-                              milestones: [5_000, 20_000, 50_000, 100_000], symbol: "↵")
+                              milestones: AchievementGoals.enter, symbol: "↵")
             keyAchievementRow("ひとっ飛び", count: activityStore.totalCount(for: \.spaceCount),
-                              milestones: [3_000, 10_000, 25_000, 50_000], symbol: "━")
+                              milestones: AchievementGoals.space, symbol: "━")
             keyAchievementRow("考え直し", count: activityStore.totalCount(for: \.backspaceCount),
-                              milestones: [10_000, 30_000, 75_000, 150_000], symbol: "⌫")
+                              milestones: AchievementGoals.backspace, symbol: "⌫")
             keyAchievementRow("道しるべ", count: activityStore.totalCount(for: \.arrowCount),
-                              milestones: [1_000, 4_000, 10_000, 20_000], symbol: "✥")
+                              milestones: AchievementGoals.arrows, symbol: "✥")
+            keyAchievementRow("ものまね好き", count: activityStore.totalCopyPasteCount,
+                              milestones: AchievementGoals.copyPaste, symbol: "⧉")
+            keyAchievementRow("やり直し上手", count: activityStore.totalCount(for: \.undoCount),
+                              milestones: AchievementGoals.undo, symbol: "↶")
+            keyAchievementRow("きれい好き", count: activityStore.totalCount(for: \.selectAllCount),
+                              milestones: AchievementGoals.selectAll, symbol: "▦")
+            keyAchievementRow("水槽の旅人", count: activityStore.totalMouseDistance,
+                              milestones: AchievementGoals.mouseDistance, symbol: "≈", unit: "pt")
         }
     }
 
-    private func keyAchievementRow(_ title: String, count: Int, milestones: [Int], symbol: String) -> some View {
+    private func keyAchievementRow(_ title: String, count: Int, milestones: [Int], symbol: String,
+                                   unit: String = "回") -> some View {
         let reached = milestones.prefix { count >= $0 }.count
         let previousGoal = reached == 0 ? 0 : milestones[reached - 1]
         let medalNames = ["銅", "銀", "金"]
@@ -377,20 +578,20 @@ struct ContentView: View {
                 ProgressView(value: Double(min(count - previousGoal, nextGoal - previousGoal)),
                              total: Double(nextGoal - previousGoal))
                 #if DEBUG
-                Text("累計 \(count.formatted()) 回")
+                Text("累計 \(count.formatted()) \(unit)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 #endif
             } else {
                 ProgressView(value: 1, total: 1)
                 #if DEBUG
-                Text("累計 \(count.formatted()) 回・最終目標達成")
+                Text("累計 \(count.formatted()) \(unit)・最終目標達成")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 #endif
             }
             #if DEBUG
-            Text("区切り: \(milestones.map { $0.formatted() }.joined(separator: " → ")) 回")
+            Text("区切り: \(milestones.map { $0.formatted() }.joined(separator: " → ")) \(unit)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             #endif
@@ -452,34 +653,67 @@ struct ContentView: View {
 
     private var previewControls: some View {
         DisclosureGroup("調整パネル", isExpanded: $previewControlsExpanded) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("活動量: \(previewActivityLevel, specifier: "%.1f")")
-                Slider(value: $previewActivityLevel, in: 0...1, step: 0.1)
-                Stepper("泡: \(previewBubbleCount)個", value: $previewBubbleCount, in: 2...16)
-                Toggle("きらめき確認", isOn: $previewHeartSparkle)
-                Toggle("花飾り", isOn: $previewFlowerAccessory)
-                Stepper("水槽の時刻: \(previewAquariumHour)時", value: $previewAquariumHour, in: 0...23)
-                if !previewPersonalityExpanded {
-                    Text("浮きやすさ: \(previewFloatiness, specifier: "%.1f")")
-                    Slider(value: $previewFloatiness, in: 0...1, step: 0.1)
-                    Text("体型: \(previewBodyShape, specifier: "%.1f")")
-                    Slider(value: $previewBodyShape, in: -0.2...0.3, step: 0.1)
-                    Text("色相: \(previewHue, specifier: "%.2f")")
-                    Slider(value: $previewHue, in: 0.25...0.45, step: 0.01)
-                }
-                DisclosureGroup("性格", isExpanded: $previewPersonalityExpanded) {
-                    Text("慎重さ: \(previewCaution, specifier: "%.1f")")
-                    Slider(value: $previewCaution, in: 0...1, step: 0.1)
-                    Text("ものまね度: \(previewMimicry, specifier: "%.1f")")
-                    Slider(value: $previewMimicry, in: 0...1, step: 0.1)
-                    Text("ふれあい度: \(previewAffection, specifier: "%.2f")")
-                    Slider(value: $previewAffection, in: 0...1, step: 0.05)
-                    Text("探検度: \(previewExploration, specifier: "%.1f")")
-                    Slider(value: $previewExploration, in: 0...1, step: 0.1)
-                    Text("すみっこ好き: \(previewCornerAffinity, specifier: "%.1f")")
-                    Slider(value: $previewCornerAffinity, in: 0...1, step: 0.1)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    DisclosureGroup("実績ごほうび") {
+                        Toggle("夜の輪っか泡（毎回）", isOn: $previewLandingRing)
+                            .onChange(of: previewLandingRing) { enabled in
+                                if enabled { previewAquariumHour = 22 }
+                            }
+                        Toggle("ものまね泡（毎回）", isOn: $previewMimicBubbles)
+                        Toggle("決断のきらめき（毎回）", isOn: $previewDecisionSparkle)
+                        Toggle("考え直しの揺れ（毎回）", isOn: $previewHesitation)
+                        Toggle("移動中の泡の軌跡", isOn: $previewBubbleTrail)
+                        Toggle("小さな水草", isOn: $previewWaterPlant)
+                        Stepper("追加の水草: \(previewExtraWaterPlants)株",
+                                value: $previewExtraWaterPlants, in: 0...2)
+                        Toggle("夜の淡い発光", isOn: $previewNightGlow)
+                        Toggle("やり直しの残像（毎回）", isOn: $previewUndoEcho)
+                        Toggle("夜の小さな星", isOn: $previewNightStars)
+                            .onChange(of: previewNightStars) { enabled in
+                                if enabled { previewAquariumHour = 22 }
+                            }
+                        Toggle("ぼんやりした月", isOn: $previewNightMoon)
+                            .onChange(of: previewNightMoon) { enabled in
+                                if enabled { previewAquariumHour = 22 }
+                            }
+                        Stepper("砂のきらめき: \(previewSandSparkleLevel)段階",
+                                value: $previewSandSparkleLevel, in: 0...4)
+                        Button("連続記録の挨拶を再生") {
+                            streakGreetingTrigger += 1
+                        }
+                        Text("跳ねやすさ: \(previewSpaceJump, specifier: "%.1f")")
+                        Slider(value: $previewSpaceJump, in: 0...1, step: 0.1)
+                    }
+                    Text("活動量: \(previewActivityLevel, specifier: "%.1f")")
+                    Slider(value: $previewActivityLevel, in: 0...1, step: 0.1)
+                    Stepper("泡: \(previewBubbleCount)個", value: $previewBubbleCount, in: 2...16)
+                    Toggle("きらめき確認", isOn: $previewHeartSparkle)
+                    Toggle("花飾り", isOn: $previewFlowerAccessory)
+                    Stepper("水槽の時刻: \(previewAquariumHour)時", value: $previewAquariumHour, in: 0...23)
+                    if !previewPersonalityExpanded {
+                        Text("浮きやすさ: \(previewFloatiness, specifier: "%.1f")")
+                        Slider(value: $previewFloatiness, in: 0...1, step: 0.1)
+                        Text("体型: \(previewBodyShape, specifier: "%.1f")")
+                        Slider(value: $previewBodyShape, in: -0.2...0.3, step: 0.1)
+                        Text("色相: \(previewHue, specifier: "%.2f")")
+                        Slider(value: $previewHue, in: 0.25...0.45, step: 0.01)
+                    }
+                    DisclosureGroup("性格", isExpanded: $previewPersonalityExpanded) {
+                        Text("慎重さ: \(previewCaution, specifier: "%.1f")")
+                        Slider(value: $previewCaution, in: 0...1, step: 0.1)
+                        Text("ものまね度: \(previewMimicry, specifier: "%.1f")")
+                        Slider(value: $previewMimicry, in: 0...1, step: 0.1)
+                        Text("ふれあい度: \(previewAffection, specifier: "%.2f")")
+                        Slider(value: $previewAffection, in: 0...1, step: 0.05)
+                        Text("探検度: \(previewExploration, specifier: "%.1f")")
+                        Slider(value: $previewExploration, in: 0...1, step: 0.1)
+                        Text("すみっこ好き: \(previewCornerAffinity, specifier: "%.1f")")
+                        Slider(value: $previewCornerAffinity, in: 0...1, step: 0.1)
+                    }
                 }
             }
+            .frame(height: 235)
         }
         .frame(width: 200)
         .padding(8)
@@ -541,6 +775,8 @@ struct ContentView: View {
                     Group {
                         Text("ペット累計: \(clickCnt)回")
                         Text("ペット今日: \(todayStats?.petClickCount ?? 0)回")
+                        Text("訪問今日: \(todayStats?.visitCount ?? 0)回")
+                        Text("訪問累計: \(activityStore.totalVisitCount)回（5分以上の間隔）")
                         Text("左クリック: \(todayStats?.leftClickCount ?? 0)回")
                         Text("右クリック: \(todayStats?.rightClickCount ?? 0)回")
                         Text("マウス移動: \(todayStats?.mouseDistance ?? 0, specifier: "%.0f")pt")

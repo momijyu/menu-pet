@@ -4,6 +4,8 @@ struct BubbleLayer: View {
     let count: Int
     let affection: Double
     let sparkleChance: Double
+    let mimicChance: Double
+    let creatureHue: Double
 
     private let bubbles: [BubbleSpec] = [
         BubbleSpec(id: 0, x: 0.15, size: 7, duration: 9, delay: 0, sway: 0),
@@ -39,7 +41,9 @@ struct BubbleLayer: View {
                     delay: bubble.delay,
                     sway: bubble.sway,
                     heartChance: bubble.id < 3 ? heartChance : 0,
-                    sparkleChance: sparkleChance
+                    sparkleChance: sparkleChance,
+                    mimicChance: mimicChance,
+                    creatureHue: creatureHue
                 )
             }
         }
@@ -65,16 +69,24 @@ private struct RisingBubble: View {
     let sway: CGFloat
     let heartChance: Double
     let sparkleChance: Double
+    let mimicChance: Double
+    let creatureHue: Double
     @State private var isAtTop = false
     @State private var isHeart = false
+    @State private var isMimicking = false
     @State private var isSparkling = false
     @State private var sparklePulse = false
     @State private var swayOffset: CGFloat = 0
     @State private var currentHeartChance = 0.0
     @State private var currentSparkleChance = 0.0
+    @State private var currentMimicChance = 0.0
 
     private var particleSize: CGFloat {
-        isHeart ? max(size * 1.8, 10) : size
+        isHeart ? max(size * 1.8, 10) : (isMimicking || mimicChance == 1 ? size * 1.4 : size)
+    }
+
+    private var mimicsCreature: Bool {
+        !isHeart && (isMimicking || mimicChance == 1)
     }
 
     var body: some View {
@@ -108,12 +120,16 @@ private struct RisingBubble: View {
                         }
                 } else {
                     Circle()
-                        .fill(Color.white.opacity(0.25))
+                        .fill(mimicsCreature
+                              ? Color(hue: creatureHue, saturation: 0.7, brightness: 0.85).opacity(0.7)
+                              : Color.white.opacity(0.25))
                         .overlay {
                             Circle()
-                                .stroke(Color(red: 0.45, green: 0.75, blue: 0.82), lineWidth: 1)
+                                .stroke(mimicsCreature
+                                        ? Color(hue: creatureHue, saturation: 0.7, brightness: 0.85)
+                                        : Color(red: 0.45, green: 0.75, blue: 0.82), lineWidth: 1)
                         }
-                        .frame(width: size, height: size)
+                        .frame(width: particleSize, height: particleSize)
                 }
             }
                 .position(
@@ -127,6 +143,9 @@ private struct RisingBubble: View {
         }
         .onChange(of: sparkleChance) { newChance in
             currentSparkleChance = newChance
+        }
+        .onChange(of: mimicChance) { newChance in
+            currentMimicChance = newChance
         }
         .task(id: isSparkling) {
             var noAnimation = Transaction(animation: nil)
@@ -146,11 +165,13 @@ private struct RisingBubble: View {
         .task {
             currentHeartChance = heartChance
             currentSparkleChance = sparkleChance
+            currentMimicChance = mimicChance
             var noAnimation = Transaction(animation: nil)
             noAnimation.disablesAnimations = true
             withTransaction(noAnimation) {
                 isAtTop = false
                 isHeart = false
+                isMimicking = false
                 isSparkling = false
                 swayOffset = -sway
             }
@@ -166,6 +187,8 @@ private struct RisingBubble: View {
                     let showsHeart = Double.random(in: 0..<1) < currentHeartChance
                     withTransaction(noAnimation) {
                         isHeart = showsHeart
+                        isMimicking = !showsHeart
+                            && Double.random(in: 0..<1) < currentMimicChance
                         isSparkling = showsHeart
                             && Double.random(in: 0..<1) < currentSparkleChance
                     }

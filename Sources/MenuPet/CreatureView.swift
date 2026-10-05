@@ -11,10 +11,23 @@ struct CreatureView: View{
         let undoStep: Int
         let tidinessStep: Int
         let habitStep: Int
+        let showsBubbleTrail: Bool
+        let undoEchoStep: Int
+        let decisionSparkleStep: Int
+        let hesitationStep: Int
     }
     private struct SleepMotionTaskID: Equatable {
         let isSleeping: Bool
         let trait: SleepTrait?
+    }
+    private struct JumpTaskID: Equatable {
+        let jumpStep: Int
+        let ringChanceStep: Int
+    }
+    private struct TrailBubble: Identifiable {
+        let id = UUID()
+        let x: CGFloat
+        let y: CGFloat
     }
 
     var size: CGFloat = 40
@@ -34,7 +47,14 @@ struct CreatureView: View{
     var habitStrength: Double
     var showsFlowerAccessory: Bool
     var welcomeBackTrigger: Int
+    var streakGreetingTrigger: Int
     var sleepProfile: SleepProfile
+    var landingRingChance: Double
+    var decisionSparkleChance: Double
+    var hesitationChance: Double
+    var showsBubbleTrail: Bool
+    var showsNightGlow: Bool
+    var undoEchoChance: Double
     var onTap: () -> Void 
     var awakeColor: Color {
         Color(hue: hue, saturation: 0.7, brightness: 0.85)
@@ -46,12 +66,22 @@ struct CreatureView: View{
     @State private var isSquished = false
     @State private var isDashing = false
     @State private var isJumping = false
+    @State private var trailBubbles: [TrailBubble] = []
+    @State private var undoEchoVisible = false
+    @State private var undoEchoOffset: CGFloat = 0
+    @State private var landingRingScale: CGFloat = 0.5
+    @State private var landingRingOpacity = 0.0
+    @State private var decisionSparkleVisible = false
+    @State private var hesitationAngle = 0.0
+    @State private var travelDirection: CGFloat = 1
     @State private var idlePulseScale: CGFloat = 1
     @State private var mimicOffset: CGFloat = 0
     @State private var touchBounceScale: CGFloat = 1
     @State private var touchBounceTrigger = 0
     @State private var welcomeScale: CGFloat = 1
     @State private var welcomeLift: CGFloat = 0
+    @State private var streakScale: CGFloat = 1
+    @State private var streakLift: CGFloat = 0
     @State private var patrolStep = 0
     @State private var sleepWiggle = 0.0
     @State private var gazeOffset: CGFloat = 0
@@ -88,7 +118,11 @@ struct CreatureView: View{
         }
     }
     private var drawingSize: CGFloat {
-        size + mossHalo * 2 + 16
+        max(
+            size + mossHalo * 2 + 16,
+            showsNightGlow ? size * 2.8 : 0,
+            decisionSparkleChance > 0 ? size * 1.7 : 0
+        )
     }
     private var movementTaskID: MovementTaskID {
         MovementTaskID(
@@ -100,7 +134,17 @@ struct CreatureView: View{
             cornerStep: Int((cornerAffinity * 20).rounded()),
             undoStep: Int((undoTendency * 20).rounded()),
             tidinessStep: Int((tidiness * 20).rounded()),
-            habitStep: Int((habitStrength * 20).rounded())
+            habitStep: Int((habitStrength * 20).rounded()),
+            showsBubbleTrail: showsBubbleTrail,
+            undoEchoStep: Int((undoEchoChance * 100).rounded()),
+            decisionSparkleStep: Int((decisionSparkleChance * 100).rounded()),
+            hesitationStep: Int((hesitationChance * 100).rounded())
+        )
+    }
+    private var jumpTaskID: JumpTaskID {
+        JumpTaskID(
+            jumpStep: Int((spaceJump * 10).rounded()),
+            ringChanceStep: Int((landingRingChance * 100).rounded())
         )
     }
     private var sleepMotionTaskID: SleepMotionTaskID {
@@ -110,6 +154,38 @@ struct CreatureView: View{
     var body: some View{
         ZStack{
             ZStack {
+                if showsNightGlow {
+                    Circle()
+                        .fill(awakeColor.opacity(0.35))
+                        .frame(width: size * 1.7, height: size * 1.7)
+                        .blur(radius: 16)
+                }
+                if landingRingChance > 0 {
+                    Ellipse()
+                        .stroke(Color(red: 0.03, green: 0.45, blue: 0.58).opacity(0.8), lineWidth: 3)
+                        .overlay {
+                            Ellipse()
+                                .stroke(Color.white.opacity(0.9), lineWidth: 1.5)
+                        }
+                        .frame(width: size * 1.25, height: size * 0.32)
+                        .scaleEffect(landingRingScale)
+                        .opacity(landingRingOpacity)
+                        .offset(y: size * 0.56)
+                }
+                if decisionSparkleVisible {
+                    Image(systemName: "sparkle")
+                        .font(.system(size: size * 0.28))
+                        .foregroundStyle(Color.yellow)
+                        .offset(x: travelDirection * size * 0.62, y: -size * 0.45)
+                        .transition(.scale.combined(with: .opacity))
+                }
+                if undoEchoVisible {
+                    Circle()
+                        .stroke(awakeColor.opacity(0.6), lineWidth: 2)
+                        .frame(width: size * 0.9, height: size * 0.9)
+                        .offset(x: undoEchoOffset)
+                        .transition(.opacity)
+                }
                 Circle()
                     .fill(isSleeping ? sleepingColor : awakeColor)
                     .frame(width: size, height: size)
@@ -164,7 +240,7 @@ struct CreatureView: View{
             }
             .frame(width: drawingSize, height: drawingSize)
             .drawingGroup()
-            .rotationEffect(.degrees(sleepWiggle))
+            .rotationEffect(.degrees(sleepWiggle + hesitationAngle))
 
             if isSleeping {
                 Text("Zzz...")
@@ -184,11 +260,27 @@ struct CreatureView: View{
         .offset(y: travelY)
         .offset(y: mimicOffset)
         .offset(y: welcomeLift)
+        .offset(y: streakLift)
         .offset(x: positionX)
         .scaleEffect(
-            x: (isSleeping ? sleepScale.x : 1) * (isSquished ? 1 + touchSquish : 1) * idlePulseScale * touchBounceScale * welcomeScale,
-            y: (isSleeping ? sleepScale.y : 1) * (isSquished ? 1 - touchSquish : 1) * idlePulseScale * touchBounceScale * welcomeScale
+            x: (isSleeping ? sleepScale.x : 1) * (isSquished ? 1 + touchSquish : 1) * idlePulseScale * touchBounceScale * welcomeScale * streakScale,
+            y: (isSleeping ? sleepScale.y : 1) * (isSquished ? 1 - touchSquish : 1) * idlePulseScale * touchBounceScale * welcomeScale * streakScale
         )
+        .background {
+            if showsBubbleTrail {
+                ZStack {
+                    ForEach(trailBubbles) { bubble in
+                        Circle()
+                            .stroke(Color.white.opacity(0.65), lineWidth: 1)
+                            .frame(width: 6, height: 6)
+                            .offset(x: bubble.x, y: bubble.y)
+                            .transition(.opacity)
+                    }
+                }
+                .frame(width: size, height: size)
+                .allowsHitTesting(false)
+            }
+        }
         .onTapGesture {
             onTap()
             respondToTap()
@@ -236,6 +328,27 @@ struct CreatureView: View{
             withAnimation(.spring(response: 0.5, dampingFraction: 0.5)) {
                 welcomeScale = 1
                 welcomeLift = 0
+            }
+        }
+        .task(id: streakGreetingTrigger) {
+            streakScale = 1
+            streakLift = 0
+            guard streakGreetingTrigger > 0 else { return }
+            for _ in 0..<2 {
+                withAnimation(.easeOut(duration: 0.18)) {
+                    streakScale = 1.12
+                    streakLift = -10
+                }
+                do {
+                    try await Task.sleep(for: .milliseconds(180))
+                } catch { return }
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.55)) {
+                    streakScale = 1
+                    streakLift = 0
+                }
+                do {
+                    try await Task.sleep(for: .milliseconds(320))
+                } catch { return }
             }
         }
         .task(id: isSquished) {
@@ -291,6 +404,10 @@ struct CreatureView: View{
         .task(id: movementTaskID) {
             floatingStepsRemaining = 0
             gazeOffset = 0
+            decisionSparkleVisible = false
+            hesitationAngle = 0
+            undoEchoVisible = false
+            trailBubbles.removeAll()
             idlePulseScale = 1
             mimicOffset = 0
             while !Task.isCancelled {
@@ -375,9 +492,15 @@ struct CreatureView: View{
                     }
                 }
 
-                if !isJumping && Double.random(in: 0..<1) < undoTendency * 0.3 {
+                if !isJumping && Double.random(in: 0..<1) < max(undoTendency * 0.3, undoEchoChance) {
                     let originalX = positionX
                     let falseStep: CGFloat = positionX < 0 ? 12 : -12
+                    if undoEchoChance > 0 {
+                        undoEchoOffset = -falseStep
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            undoEchoVisible = true
+                        }
+                    }
                     withAnimation(.easeOut(duration: 0.2)) {
                         positionX = originalX + falseStep
                     }
@@ -389,6 +512,7 @@ struct CreatureView: View{
                     guard !isSleeping else { continue }
                     withAnimation(.easeInOut(duration: 0.25)) {
                         positionX = originalX
+                        undoEchoVisible = false
                     }
                     do {
                         try await Task.sleep(for: .milliseconds(250))
@@ -461,6 +585,33 @@ struct CreatureView: View{
                 let duration = distance / speed * (1 + verticalShare * 0.3)
 
                 let gazeDirection: CGFloat = nextX > positionX ? 1 : -1
+                travelDirection = gazeDirection
+                if Double.random(in: 0..<1) < decisionSparkleChance {
+                    withAnimation(.easeOut(duration: 0.12)) {
+                        decisionSparkleVisible = true
+                    }
+                }
+                if Double.random(in: 0..<1) < hesitationChance {
+                    withAnimation(.easeInOut(duration: 0.14)) {
+                        hesitationAngle = -6
+                    }
+                    do {
+                        try await Task.sleep(for: .milliseconds(140))
+                    } catch {
+                        return
+                    }
+                    withAnimation(.easeInOut(duration: 0.14)) {
+                        hesitationAngle = 6
+                    }
+                    do {
+                        try await Task.sleep(for: .milliseconds(140))
+                    } catch {
+                        return
+                    }
+                    withAnimation(.easeInOut(duration: 0.14)) {
+                        hesitationAngle = 0
+                    }
+                }
                 withAnimation(.easeInOut(duration: 0.2)) {
                     gazeOffset = gazeDirection * size * 0.055
                 }
@@ -470,11 +621,15 @@ struct CreatureView: View{
                 } catch {
                     return
                 }
+                withAnimation(.easeIn(duration: 0.15)) {
+                    decisionSparkleVisible = false
+                }
                 guard !isSleeping else { continue }
 
                 if shouldDash {
                     isDashing = true
                     defer { isDashing = false }
+                    if showsBubbleTrail { addTrailBubble() }
                     withAnimation(.timingCurve(0.2, 0.5, 0.6, 1, duration: duration)) {
                         positionX = nextX
                         travelY = nextY
@@ -500,6 +655,9 @@ struct CreatureView: View{
                             positionX = startX + (nextX - startX) * eased
                             travelY = startY + (nextY - startY) * eased + sway
                         }
+                        if showsBubbleTrail && step.isMultiple(of: 3) {
+                            addTrailBubble()
+                        }
                         do {
                             try await Task.sleep(for: .seconds(stepDuration))
                         } catch {
@@ -507,12 +665,15 @@ struct CreatureView: View{
                         }
                     }
                 }
+                withAnimation(.easeOut(duration: 0.7)) {
+                    trailBubbles.removeAll()
+                }
                 withAnimation(.easeInOut(duration: 0.25)) {
                     gazeOffset = 0
                 }
             }
         }
-        .task {
+        .task(id: jumpTaskID) {
             while !Task.isCancelled {
                 do {
                     try await Task.sleep(for: .seconds(8 - spaceJump * 5))
@@ -531,6 +692,24 @@ struct CreatureView: View{
                     return
                 }
                 positionY = 0
+                if Double.random(in: 0..<1) < landingRingChance {
+                    var noAnimation = Transaction(animation: nil)
+                    noAnimation.disablesAnimations = true
+                    withTransaction(noAnimation) {
+                        landingRingScale = 0.5
+                        landingRingOpacity = 1
+                    }
+                    // 初期状態を1フレーム描画してから広げる。
+                    do {
+                        try await Task.sleep(for: .milliseconds(20))
+                    } catch {
+                        return
+                    }
+                    withAnimation(.easeOut(duration: 0.85)) {
+                        landingRingScale = 1.6
+                        landingRingOpacity = 0
+                    }
+                }
                 do {
                     try await Task.sleep(for: .milliseconds(450))
                 } catch {
@@ -576,7 +755,18 @@ struct CreatureView: View{
                 touchBounceScale = 1
                 floatingStepsRemaining = 0
                 isJumping = false
+                decisionSparkleVisible = false
+                hesitationAngle = 0
+                undoEchoVisible = false
+                trailBubbles.removeAll()
             }
+        }
+    }
+
+    private func addTrailBubble() {
+        trailBubbles.append(TrailBubble(x: positionX, y: travelY))
+        if trailBubbles.count > 8 {
+            trailBubbles.removeFirst()
         }
     }
 }

@@ -14,6 +14,7 @@ final class ActivityStore: ObservableObject {
     private var previousMouseLocation: NSPoint?
     //データがないから?を使用してるよー
     private var pendingMouseDistance: Double = 0
+    private var lastVisitAt: Date?
 
     init(){
         //print("Accessibility許可: \(AXIsProcessTrusted())")
@@ -35,6 +36,17 @@ final class ActivityStore: ObservableObject {
         updateToday { stats in
             stats.petClickCount += 1
         }
+    }
+    func recordVisit() {
+        guard hasLoaded else { return }
+        let now = Date()
+        if let lastVisitAt,
+           Calendar.current.isDate(lastVisitAt, inSameDayAs: now),
+           now.timeIntervalSince(lastVisitAt) < 300 {
+            return
+        }
+        lastVisitAt = now
+        updateToday { $0.visitCount += 1 }
     }
 
     func recordLeftClick() {
@@ -305,6 +317,35 @@ final class ActivityStore: ObservableObject {
     var totalActiveDays: Int {
         activeDayDates.count
     }
+    var longestActiveStreak: Int {
+        let calendar = Calendar.current
+        var previousDay: Date?
+        var current = 0
+        var longest = 0
+        for day in activeDayDates.sorted() {
+            if let previousDay,
+               calendar.date(byAdding: .day, value: 1, to: previousDay) == day {
+                current += 1
+            } else {
+                current = 1
+            }
+            longest = max(longest, current)
+            previousDay = day
+        }
+        return longest
+    }
+    var nightActivityDays: Int {
+        Set(dailyStats.filter { day in
+            let nightEvents = day.activityByHour.enumerated().reduce(0) { total, entry in
+                let hour = entry.offset
+                return total + (hour < 5 || (20..<24).contains(hour) ? entry.element : 0)
+            }
+            return nightEvents >= 20
+        }.map { Calendar.current.startOfDay(for: $0.date) }).count
+    }
+    var hasWaterPlant: Bool {
+        totalActiveDays >= AchievementGoals.waterPlantActiveDays
+    }
     var hasHeartSparkle: Bool {
         petTouchDays >= 20
     }
@@ -537,6 +578,53 @@ final class ActivityStore: ObservableObject {
         dailyStats.reduce(0) { total, day in
             total + day[keyPath: keyPath]
         }
+    }
+    var totalCopyPasteCount: Int {
+        totalCount(for: \.copyCount) + totalCount(for: \.pasteCount)
+    }
+    var totalVisitCount: Int {
+        totalCount(for: \.visitCount)
+    }
+    var visitAchievementCount: Int {
+        AchievementGoals.cappedTotal(dailyStats.map(\.visitCount),
+                                    dailyLimit: AchievementGoals.visitDailyLimit)
+    }
+    var petTouchAchievementCount: Int {
+        AchievementGoals.cappedTotal(dailyStats.map(\.petClickCount),
+                                    dailyLimit: AchievementGoals.petTouchDailyLimit)
+    }
+    var sandSparkleLevel: Int {
+        AchievementGoals.petTouches.prefix { petTouchAchievementCount >= $0 }.count
+    }
+    var totalMouseDistance: Int {
+        Int(dailyStats.reduce(0.0) { $0 + $1.mouseDistance })
+    }
+    var undoEchoChance: Double {
+        AchievementGoals.undoEchoChance(for: totalCount(for: \.undoCount))
+    }
+    var nightStarCount: Int {
+        AchievementGoals.nightActivityDays.prefix { nightActivityDays >= $0 }.count
+    }
+    var hasNightMoon: Bool {
+        nightActivityDays >= AchievementGoals.nightActivityDays[2]
+    }
+    var mimicBubbleChance: Double {
+        AchievementGoals.mimicBubbleChance(for: totalCopyPasteCount)
+    }
+    var landingRingChance: Double {
+        AchievementGoals.landingRingChance(for: totalCount(for: \.spaceCount))
+    }
+    var decisionSparkleChance: Double {
+        AchievementGoals.decisionSparkleChance(for: totalCount(for: \.enterCount))
+    }
+    var hesitationChance: Double {
+        AchievementGoals.hesitationChance(for: totalCount(for: \.backspaceCount))
+    }
+    var hasBubbleTrail: Bool {
+        totalCount(for: \.arrowCount) >= AchievementGoals.arrows[2]
+    }
+    var hasNightGlow: Bool {
+        totalKeyCount >= AchievementGoals.allKeys[3]
     }
     var creatureSize: CGFloat {
         45 + min(CGFloat(totalKeyCount) / 100_000, 1) * 15

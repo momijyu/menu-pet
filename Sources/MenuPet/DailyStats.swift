@@ -4,6 +4,7 @@ struct DailyStats: Codable {
     let date: Date
     var clickCount: Int = 0
     var petClickCount: Int = 0
+    var visitCount: Int = 0
     var leftClickCount: Int = 0
     var rightClickCount: Int = 0
     var mouseDistance = 0.0
@@ -22,6 +23,7 @@ struct DailyStats: Codable {
         case date
         case clickCount
         case petClickCount
+        case visitCount
         case leftClickCount
         case rightClickCount
         case mouseDistance
@@ -41,6 +43,7 @@ struct DailyStats: Codable {
         date: Date,
         clickCount: Int = 0,
         petClickCount: Int = 0,
+        visitCount: Int = 0,
         leftClickCount: Int = 0,
         rightClickCount: Int = 0,
         mouseDistance: Double = 0.0,
@@ -59,6 +62,7 @@ struct DailyStats: Codable {
         self.date = date
         self.clickCount = clickCount
         self.petClickCount = petClickCount
+        self.visitCount = visitCount
         self.leftClickCount = leftClickCount
         self.rightClickCount = rightClickCount
         self.mouseDistance = mouseDistance
@@ -88,6 +92,7 @@ struct DailyStats: Codable {
         clickCount = try readCount(.clickCount)
 
         petClickCount = try readCount(.petClickCount)
+        visitCount = try readCount(.visitCount)
 
         leftClickCount = try readCount(.leftClickCount)
 
